@@ -1,26 +1,18 @@
 # Screenshots
 
-Place your application screenshots in this folder.
+Application screenshots from the running Bhote Valley Emergency Simulation.
 
-## Naming Convention
+## Screenshots
 
-Name your screenshots sequentially so they appear in logical order:
-
-  01-landing-page.png       ← First thing a user sees
-  02-main-feature.png       ← Your primary feature in action
-  03-output-or-results.png  ← The result / value delivered
-  04-additional-feature.png ← Any other notable screen
+| # | File | Description |
+|---|------|-------------|
+| 1 | [1-dashboard-overview.png](1-dashboard-overview.png) | Initial dashboard overview — map, priority queue, resources |
+| 2 | [2-dashboard-overview.png](2-dashboard-overview.png) | Simulation running — evidence conflicts and blocked infrastructure |
+| 3 | [3-dashboard-overview.png](3-dashboard-overview.png) | Benchmark metrics and AI vs baseline comparison |
 
 ## Requirements
 
 - Minimum: 3 screenshots
-- Format: PNG or JPG
-- Show the application running with real (or realistic mock) data
-- Avoid screenshots of empty states or placeholder data
-- Captions are not required but appreciated
-
-## Tips
-
-- Use a consistent browser window size across all screenshots
-- Highlight key UI elements with arrows/circles if helpful (use any image editor)
-- Include a screenshot showing IBM technology integration if applicable
+- Format: PNG
+- Show the application running with real data
+- Avoid screenshots of empty states

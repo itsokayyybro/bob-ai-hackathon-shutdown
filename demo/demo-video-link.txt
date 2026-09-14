@@ -1,15 +1,13 @@
-https://youtu.be/your-demo-video-link-here
+https://youtu.be/placeholder-demo-video-link
 
-Replace the URL above with a link to your demo video.
+NOTE: Replace this URL with the actual demo video link before final submission.
+A screen recording demonstrating the Bhote Valley Emergency Simulation is required.
 
-Accepted platforms:
-  - YouTube (public or unlisted)
-  - Loom (https://www.loom.com/share/...)
-  - IBM Box (https://ibm.box.com/s/...)
-  - Google Drive (set to "Anyone with the link can view")
-
-Video requirements:
-  - Length: 3–5 minutes maximum
-  - Must show the application running (not just slides)
-  - Should walk through at least one key feature end-to-end
-  - Audio narration strongly recommended
+The demo should show:
+1. Initial system state (normal conditions)
+2. Processing simulation events (flood → bridge damage → conflicting reports → road blockage)
+3. Evidence conflict detection being surfaced
+4. Priority queue updating after each event
+5. Route recalculation after bridge blockage
+6. IBM Bob Q&A via the AI chat panel
+7. Benchmark results (AI system vs baseline)

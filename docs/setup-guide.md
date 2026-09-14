@@ -1,79 +1,309 @@
-# Setup Guide
+# Setup Guide — AI Emergency Operations & Resource Orchestration System
 
-> **This file is read by the automated evaluation pipeline. Be precise and complete.**
+> Complete setup instructions for judges, evaluators, and developers.  
+> The system runs fully without any external credentials.
+
+---
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
-
-- [ ] [e.g., Python 3.11+]
-- [ ] [e.g., Node.js 18+]
-- [ ] [e.g., Docker Desktop]
-- [ ] [e.g., An IBM Cloud account with watsonx.ai access]
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and fill in the values:
-
-```bash
-cp .env.example .env
-```
-
-| Variable | Description | Required |
+| Requirement | Version | Notes |
 |---|---|---|
-| `WATSONX_API_KEY` | Your IBM watsonx.ai API key | Yes |
-| `WATSONX_PROJECT_ID` | Your watsonx.ai project ID | Yes |
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `SLACK_WEBHOOK_URL` | Slack webhook for alerts | No |
+| Python | 3.9+ | 3.14 tested; use `/opt/conda/bin/python3` if available |
+| Node.js | 18+ | For React frontend |
+| npm | 9+ | Bundled with Node.js |
+| Git | Any | For cloning |
+| Internet | Recommended | For map tiles (CartoDB); falls back gracefully offline |
 
-## Installation
+No Docker, no Kubernetes, no external services required.
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/[your-org]/[your-repo].git
-cd [your-repo]
+---
 
-# 2. Install backend dependencies
-[your command — e.g.: pip install -r requirements.txt]
-
-# 3. Install frontend dependencies (if applicable)
-[your command — e.g.: cd frontend && npm install]
-
-# 4. Set up the database (if applicable)
-[your command — e.g.: python manage.py migrate]
-```
-
-## Running the Application
+## Quick Start (5 minutes)
 
 ```bash
-# Start the backend
-[your command — e.g.: uvicorn app.main:app --reload]
+# Clone
+git clone <repo-url>
+cd bob-ai-hackathon-shutdown
 
-# Start the frontend (in a separate terminal, if applicable)
-[your command — e.g.: cd frontend && npm run dev]
+# Install all dependencies
+make install
+
+# Terminal 1: Start backend
+make dev-backend
+
+# Terminal 2: Start frontend  
+make dev-frontend
+
+# Open browser
+open http://localhost:5173
 ```
 
-The application will be available at: `http://localhost:[PORT]`
+---
+
+## Step-by-Step Setup
+
+### 1. Clone the repository
+
+```bash
+git clone <repo-url>
+cd bob-ai-hackathon-shutdown
+```
+
+### 2. Install backend dependencies
+
+```bash
+cd src/backend
+pip install -r requirements.txt
+cd ../..
+```
+
+**Or with a specific Python interpreter:**
+```bash
+/opt/conda/bin/python3 -m pip install -r src/backend/requirements.txt
+```
+
+### 3. Install frontend dependencies
+
+```bash
+cd src/frontend
+npm install --legacy-peer-deps
+cd ../..
+```
+
+### 4. Environment configuration (optional)
+
+```bash
+cp src/.env.example src/.env
+# Edit src/.env if you have watsonx.ai credentials
+# Leave empty for deterministic fallback mode (fully functional)
+```
+
+The system **works without any credentials**. The deterministic AI provider generates structured summaries from actual system state.
+
+### 5. Start the backend
+
+```bash
+# From repo root:
+make dev-backend
+
+# Or manually:
+cd src/backend
+PYTHONPATH=$(pwd) /opt/conda/bin/python3 -m uvicorn app.main:app --reload --port 8000 --host 0.0.0.0
+```
+
+The backend will:
+- Initialize the SQLite database automatically
+- Seed the Bhote Valley scenario data
+- Load the world state into memory
+- Start serving at `http://localhost:8000`
+
+**Verify:** `curl http://localhost:8000/health`
+
+Expected response:
+```json
+{"status":"healthy","version":"1.0.0","assets":14,"pending_events":13}
+```
+
+### 6. Start the frontend
+
+```bash
+# From repo root:
+make dev-frontend
+
+# Or manually:
+cd src/frontend
+npm run dev
+```
+
+Dashboard available at `http://localhost:5173`
+
+### 7. API documentation
+
+Interactive API docs at `http://localhost:8000/docs` (Swagger UI)
+
+---
+
+## Running the Simulation
+
+### Option A: Step-by-step via dashboard
+
+1. Open `http://localhost:5173`
+2. Click **"Next Event"** to process one event at a time
+3. Observe: priority queue updates, map changes, evidence panel
+4. Click **"Auto Play"** to run all events automatically
+5. Click **"Inject Event"** to test custom scenarios
+6. Use the AI chat panel to ask questions
+
+### Option B: Via API
+
+```bash
+# Process next event
+curl -X POST http://localhost:8000/simulate/next
+
+# Auto-run all events
+curl -X POST "http://localhost:8000/simulate/auto"
+
+# Get current situation
+curl http://localhost:8000/situation | python3 -m json.tool
+
+# Get priorities
+curl http://localhost:8000/priorities | python3 -m json.tool
+
+# Inject a custom event
+curl -X POST http://localhost:8000/simulate/event \
+  -H "Content-Type: application/json" \
+  -d '{"event_type":"road_blockage","entity_id":"R7","observation_type":"road_status","value":"blocked","confidence":0.9,"description":"Test blockage","source_type":"field_report","metadata":{}}'
+
+# Ask the AI
+curl -X POST http://localhost:8000/ai/question \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What is the highest priority location?"}'
+
+# Reset simulation
+curl -X POST http://localhost:8000/simulate/reset
+```
+
+---
 
 ## Running Tests
 
 ```bash
-[your test command — e.g.: pytest tests/ -v]
+# All tests (64 unit + integration)
+make test
+
+# Or manually:
+cd src/backend
+PYTHONPATH=$(pwd) /opt/conda/bin/python3 -m pytest tests/ -v
 ```
 
-## Quick Demo (Optional)
+Expected output: `64 passed`
 
-If you have a demo script or sample data to showcase the project quickly:
+### Unit tests only:
+```bash
+cd src/backend
+PYTHONPATH=$(pwd) /opt/conda/bin/python3 -m pytest tests/test_engines.py -v
+```
+
+### Integration tests only:
+```bash
+cd src/backend
+PYTHONPATH=$(pwd) /opt/conda/bin/python3 -m pytest tests/test_integration.py -v
+```
+
+---
+
+## Running the Benchmark
 
 ```bash
-[e.g.: python demo/seed_demo_data.py]
-[e.g.: open http://localhost:8000/demo]
+make benchmark
 ```
+
+This will:
+1. Initialize and seed the database
+2. Run the full 13-event simulation
+3. Compare AI system vs. nearest-resource baseline
+4. Print metrics to stdout
+5. Save results to `src/backend/benchmark_results.json`
+
+---
+
+## IBM Bob MCP Setup
+
+### 1. Configure MCP server
+
+The MCP config is at `src/mcp/mcp_config.json`. Bob uses this to start the MCP server.
+
+```json
+{
+  "mcpServers": {
+    "disaster-response": {
+      "command": "/opt/conda/bin/python3",
+      "args": ["/path/to/src/mcp/server.py"],
+      "env": {
+        "BACKEND_URL": "http://localhost:8000"
+      }
+    }
+  }
+}
+```
+
+### 2. Test MCP tools manually
+
+```bash
+# With backend running:
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | /opt/conda/bin/python3 src/mcp/server.py
+
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | /opt/conda/bin/python3 src/mcp/server.py
+```
+
+### 3. Available MCP tools
+
+| Tool | Description |
+|---|---|
+| `get_current_situation` | Full situation overview |
+| `get_priority_sites` | Top-N priority locations |
+| `get_entity_evidence` | Evidence for any entity |
+| `get_route` | Calculate feasible route |
+| `get_resource_status` | All resource status |
+| `generate_response_plan` | Optimized assignment plan |
+| `simulate_event` | Inject custom event |
+| `simulate_next_event` | Advance timeline |
+| `recalculate_allocation` | Force reoptimization |
+| `explain_decision` | Decision explanation |
+| `get_benchmark_metrics` | Performance comparison |
+| `ask_operator_question` | Natural language Q&A |
+| `get_timeline` | Full event timeline |
+| `reset_simulation` | Reset to initial state |
+
+---
+
+## Building the Frontend (Production)
+
+```bash
+make build-frontend
+# Output in src/frontend/dist/
+```
+
+---
 
 ## Troubleshooting
 
-| Issue | Solution |
-|---|---|
-| [e.g., `ModuleNotFoundError`] | [e.g., Run `pip install -r requirements.txt` again] |
-| [e.g., Database connection refused] | [e.g., Ensure PostgreSQL is running: `docker compose up db`] |
-| [e.g., watsonx.ai 401 error] | [e.g., Check `WATSONX_API_KEY` in your `.env` file] |
+### Backend won't start
+```bash
+# Check Python version
+python3 --version  # Need 3.9+
+
+# Try conda Python
+/opt/conda/bin/python3 -m uvicorn app.main:app --port 8000
+```
+
+### Database errors
+```bash
+# Delete and recreate
+rm src/backend/disaster_response.db
+make dev-backend  # Auto-recreates and seeds
+```
+
+### Frontend can't reach backend
+- Ensure backend is running on port 8000
+- Check `src/frontend/vite.config.ts` proxy settings
+- The Vite dev server proxies `/api/*` → `http://localhost:8000`
+
+### Map tiles not loading
+- Map tiles use CartoDB (internet required)
+- The dashboard still functions without tiles; entities and routes are visible
+
+### MCP tools return "Cannot connect to backend"
+- Ensure backend is running: `curl http://localhost:8000/health`
+- Check `BACKEND_URL` environment variable
+
+---
+
+## Resetting to Clean State
+
+```bash
+make clean
+make seed
+make dev-backend
+```

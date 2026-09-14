@@ -1,69 +1,72 @@
-# =============================================================================
-# HACKATHON SUBMISSION METADATA
-# =============================================================================
-# Instructions:
-#   - Fill in ALL required fields (marked with # REQUIRED)
-#   - Optional fields can be left as empty strings ""
-#   - Do NOT rename this file — the evaluation pipeline reads it by name
-#   - Use double quotes around all string values
-# =============================================================================
-
 team:
-  name: ""                             # REQUIRED — e.g., "Orion Squad"
-  track: ""                            # REQUIRED — one of: AI | DevOps | Sustainability | Open
+  name: "shutdown"
+  track: "Open"
   lead:
-    name: ""                           # REQUIRED — e.g., "Alice Chen"
-    email: ""                          # REQUIRED — e.g., "alice.chen@ibm.com"
+    name: "Om Prajapati"
+    email: "24bsit130@charusat.edu.in"
   members:
-    - name: ""                         # REQUIRED — Team member 1
-      email: ""
-    - name: ""                         # Add more members by copying the two lines above
-      email: ""
-    - name: ""
-      email: ""
+    - name: "Jeet Pandya"
+      email: "24bca095@charusat.edu.in"
+    - name: "Prince Patel"
+      email: "24bsit109@charusat.edu.in"
+    - name: "Darshan Mandalaywala"
+      email: "24bca078@charusat.edu.in"
 
 submission:
-  title: ""                            # REQUIRED — Project display name, e.g., "SmartOps Dashboard"
+  title: "AI Emergency Operations & Resource Orchestration System"
 
-  problem_statement: >                 # REQUIRED — 1-3 sentences. What problem? Who has it?
-    Replace this text with a concise description of the real-world problem
-    your project addresses and who experiences it.
+  problem_statement: >
+    Disaster response operations must combine fragmented, uncertain, and sometimes
+    conflicting information from field teams, imagery, infrastructure systems, hospitals,
+    and sensors. Without evidence fusion, accessibility analysis, and resource optimization,
+    critical decisions can be delayed and limited emergency resources can be misallocated.
 
-  solution_summary: >                  # REQUIRED — 1-3 sentences. What did you build?
-    Replace this text with a clear description of your solution
-    and how it addresses the problem above.
+  solution_summary: >
+    We built an evidence-aware operational decision engine for disaster response. The system
+    fuses multi-source observations with freshness decay and conflict detection, computes
+    graph-based route accessibility with simulated road and bridge status changes, performs
+    constrained resource allocation, and provides natural-language operational Q&A through
+    IBM Bob MCP tools — all backed by a deterministic discrete-event simulation of a
+    synthetic Bhote Valley flood scenario.
 
-  key_features:                        # REQUIRED — List 3 to 5 specific features you implemented
-    - ""                               # e.g., "Real-time pipeline anomaly detection using watsonx.ai"
-    - ""
-    - ""
-    - ""                               # optional 4th
-    - ""                               # optional 5th
+  key_features:
+    - "Multi-source evidence fusion with weighted freshness decay and explicit conflict detection (source_reliability × confidence × exp(-λ × age))"
+    - "Dynamic NetworkX road/bridge graph with simulated status updates, blocked-route exclusion, and automatic alternate path calculation"
+    - "Constrained resource optimizer using greedy allocation plus local improvement, with capability matching and measurable improvement over a nearest-resource baseline"
+    - "14 IBM Bob MCP tools backed by live backend state, including situation, evidence, routing, simulation, decision explanation, and benchmark operations"
+    - "64-test suite, deterministic synthetic Bhote Valley scenario, and reproducible benchmark comparing the orchestration engine against baseline strategies"
 
   tech_stack:
-    languages: []                      # REQUIRED — e.g., ["Python", "TypeScript"]
-    frameworks: []                     # e.g., ["FastAPI", "React"]
-    ibm_technologies: []               # e.g., ["watsonx.ai", "IBM Bob", "IBM Cloud Functions"]
-    databases: []                      # e.g., ["PostgreSQL", "Redis"]
-    other: []                          # e.g., ["Docker", "GitHub Actions", "Slack API"]
+    languages: ["Python", "TypeScript"]
+    frameworks: ["FastAPI", "React", "Vite", "Pydantic v2", "SQLAlchemy", "NetworkX"]
+    ibm_technologies:
+      - "IBM Bob (MCP integration — 14 operational tools)"
+      - "IBM watsonx.ai (optional — ibm/granite-3-8b-instruct)"
+    databases: ["SQLite (aiosqlite, local demo)", "PostgreSQL-ready (configurable)"]
+    other: ["Leaflet", "React-Leaflet", "pytest", "httpx", "uvicorn"]
 
-  what_we_are_most_proud_of: >         # Optional but recommended — guides judges to your best work
-    Replace with what aspect of the submission you consider strongest
-    and want judges to pay special attention to.
+  what_we_are_most_proud_of: >
+    The evidence fusion and conflict detection engine. When Bridge B1 receives two
+    contradictory field reports, the system surfaces the conflict using source reliability,
+    freshness, confidence, and provenance, and recommends human verification rather than
+    silently choosing one source. Uncertainty is treated as a first-class part of the
+    operational state. Combined with 14 load-bearing IBM Bob MCP tools that return actual
+    backend algorithmic results rather than hardcoded responses, the system demonstrates
+    an explainable and measurable approach to disaster-response decision support.
 
-  known_limitations: >                 # Optional but recommended — be honest about gaps
-    Replace with any known limitations, incomplete features,
-    or shortcuts taken due to time constraints.
+  known_limitations: >
+    The prototype uses a deterministic synthetic Bhote Valley flood scenario and does not
+    ingest real-time external disaster data. Map tiles require internet connectivity.
+    Resource optimization uses greedy allocation plus local improvement rather than a full
+    ILP/MILP solver. The watsonx.ai LLM integration is optional and the system remains
+    functional without it. The prototype is a decision-support system and does not
+    autonomously direct real-world emergency operations.
 
-# =============================================================================
-# ARTIFACT LOCATIONS
-# These paths are relative to the repo root. Only change if you moved files.
-# =============================================================================
 artifacts:
   source_code: "src/"
   setup_guide: "docs/setup-guide.md"
   architecture_doc: "docs/architecture.md"
-  demo_video: "demo/demo-video-link.txt"   # URL to hosted video (YouTube, Loom, Box)
-  live_demo: "demo/live-demo-url.txt"      # URL to deployed demo (optional)
+  demo_video: "demo/demo-video-link.txt"
+  live_demo: "demo/live-demo-url.txt"
   screenshots: "demo/screenshots/"
   presentation: "presentation/"
