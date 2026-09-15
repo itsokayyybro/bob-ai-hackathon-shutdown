@@ -1,8 +1,64 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Component } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Popup } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { api } from './api'
 import type { Situation, Resource, EvidenceSummary, BenchmarkResult } from './api'
+
+class ErrorBoundary extends Component<{ children: React.ReactNode }, { error: string | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props)
+    this.state = { error: null }
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error: error.message || 'Unknown error' }
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('ErrorBoundary caught:', error, info)
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 24, color: '#ef4444', fontFamily: 'monospace' }}>
+          <h2>⚠ Application Error</h2>
+          <p>{this.state.error}</p>
+          <button className="btn" onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function LoadingScreen({ message }: { message?: string }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100vh', background: '#0a0e1a', color: '#94a3b8',
+      fontFamily: 'sans-serif', fontSize: 16, flexDirection: 'column', gap: 12
+    }}>
+      <div style={{ fontSize: 32 }}>⏳</div>
+      <div>{message || 'Loading Emergency Operations Center…'}</div>
+    </div>
+  )
+}
+
+function BackendError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100vh', background: '#0a0e1a', color: '#ef4444',
+      fontFamily: 'sans-serif', padding: 32, flexDirection: 'column', gap: 16, textAlign: 'center'
+    }}>
+      <div style={{ fontSize: 48 }}>⚠️</div>
+      <h2>Backend Unavailable</h2>
+      <p style={{ color: '#94a3b8', maxWidth: 500 }}>{message}</p>
+      <button className="btn primary" onClick={onRetry}>Retry Connection</button>
+      <p style={{ fontSize: 12, color: '#64748b' }}>
+        Ensure the backend server is running on port 8000.
+      </p>
+    </div>
+  )
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -639,6 +695,8 @@ export default function App() {
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [initialLoad, setInitialLoad] = useState(true)
+  const [backendError, setBackendError] = useState(false)
 
   const refresh = useCallback(async () => {
     try {
@@ -653,8 +711,12 @@ export default function App() {
       setSimEvents(evts.events || [])
       setMapData(map)
       setError(null)
+      setBackendError(false)
     } catch (e) {
       setError(`Backend unreachable: ${e}`)
+      setBackendError(true)
+    } finally {
+      setInitialLoad(false)
     }
   }, [])
 
@@ -671,6 +733,14 @@ export default function App() {
     const interval = setInterval(refresh, 5000)
     return () => clearInterval(interval)
   }, [refresh, refreshBenchmark])
+
+  if (initialLoad) {
+    return <LoadingScreen message="Connecting to Emergency Operations Center…" />
+  }
+
+  if (backendError && !situation) {
+    return <BackendError message="Unable to connect to the backend API. The backend server must be running." onRetry={refresh} />
+  }
 
   const handleNextEvent = async () => {
     setLoading(true)
@@ -741,6 +811,7 @@ export default function App() {
     ?.sort((a, b) => b.priority_score - a.priority_score) || []
 
   return (
+    <ErrorBoundary>
     <div className="eoc-layout">
       {/* Header */}
       <header className="eoc-header">
@@ -748,6 +819,7 @@ export default function App() {
         <div className="eoc-title">⚡ AI Emergency Operations Center</div>
         <div className="eoc-scenario">🏔 Bhote Valley Emergency Simulation</div>
         {error && <span style={{ color: 'var(--accent-red)', fontSize: 11, marginLeft: 8 }}>⚠ {error}</span>}
+        {backendError && !situation && <span style={{ color: 'var(--accent-yellow)', fontSize: 11, marginLeft: 8 }}>⚠ Backend reconnecting…</span>}
         <div className="eoc-sim-time">
           T+{situation?.sim_time_min ?? 0}min
           {' · '}
@@ -819,5 +891,6 @@ export default function App() {
         <AIChatPanel pendingQuestion={pendingQuestion} onClear={() => setPendingQuestion(null)} />
       </div>
     </div>
+    </ErrorBoundary>
   )
 }

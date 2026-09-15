@@ -1,13 +1,23 @@
-https://youtu.be/placeholder-demo-video-link
+Not yet available — run locally using docs/setup-guide.md
 
-NOTE: Replace this URL with the actual demo video link before final submission.
-A screen recording demonstrating the Bhote Valley Emergency Simulation is required.
+To run the application locally:
+1. make install
+2. make dev-backend (terminal 1)
+3. make dev-frontend (terminal 2)
+4. Open http://localhost:5173
 
-The demo should show:
-1. Initial system state (normal conditions)
-2. Processing simulation events (flood → bridge damage → conflicting reports → road blockage)
-3. Evidence conflict detection being surfaced
-4. Priority queue updating after each event
-5. Route recalculation after bridge blockage
-6. IBM Bob Q&A via the AI chat panel
-7. Benchmark results (AI system vs baseline)
+The dashboard demonstrates the full Bhote Valley Emergency Simulation with:
+- 14 assets across a mountain valley network
+- 12 road segments and 2 bridges
+- Evidence fusion with conflict detection
+- IBM Bob MCP tools for AI Q&A
+- Benchmark results comparing AI vs baseline
+
+A screen recording should capture:
+1. Initial dashboard state
+2. Processing simulation events
+3. Evidence conflicts surfacing
+4. Priority queue updates
+5. Route recalculation
+6. IBM Bob Q&A interaction
+7. Benchmark metrics

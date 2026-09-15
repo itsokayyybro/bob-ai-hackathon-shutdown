@@ -94,3 +94,7 @@ logs/
 .terraform/
 *.tfstate
 *.tfstate.backup
+db
+*.json
+*.db
+*.json

@@ -1,20 +1,38 @@
-// API client — all calls go through the Vite proxy to /api → backend :8000
-const API_BASE = '/api'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
+
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+    this.name = 'ApiError'
+  }
+}
 
 export const api = {
   get: async (path: string) => {
-    const r = await fetch(`${API_BASE}${path}`)
-    if (!r.ok) throw new Error(`API ${path}: ${r.status}`)
-    return r.json()
+    try {
+      const r = await fetch(`${API_BASE}${path}`)
+      if (!r.ok) throw new ApiError(`API ${path}: ${r.status}`, r.status)
+      return r.json()
+    } catch (e) {
+      if (e instanceof ApiError) throw e
+      throw new Error(`Network error: ${e}`)
+    }
   },
   post: async (path: string, body?: unknown) => {
-    const r = await fetch(`${API_BASE}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
-    })
-    if (!r.ok) throw new Error(`API ${path}: ${r.status}`)
-    return r.json()
+    try {
+      const r = await fetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      if (!r.ok) throw new ApiError(`API ${path}: ${r.status}`, r.status)
+      return r.json()
+    } catch (e) {
+      if (e instanceof ApiError) throw e
+      throw new Error(`Network error: ${e}`)
+    }
   },
 }
 

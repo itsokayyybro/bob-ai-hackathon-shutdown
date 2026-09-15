@@ -29,10 +29,12 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -173,13 +175,15 @@ async def get_situation():
         "scenario": "Bhote Valley Emergency Simulation",
         "top_priorities": [
             {
-                "id": p.entity_id,
-                "name": p.entity_name,
-                "type": p.entity_type.value,
-                "priority": p.priority_score,
-                "urgency": p.urgency_score,
-                "accessibility": p.accessibility_factor,
-                "confidence": p.confidence_factor,
+                "entity_id": p.entity_id,
+                "entity_name": p.entity_name,
+                "entity_type": p.entity_type.value,
+                "priority_score": p.priority_score,
+                "criticality_score": p.criticality_score,
+                "urgency_score": p.urgency_score,
+                "accessibility_factor": p.accessibility_factor,
+                "confidence_factor": p.confidence_factor,
+                "impact_score": p.impact_score,
                 "explanation": p.explanation,
                 "supporting_factors": p.supporting_factors,
                 "rank": i + 1,
@@ -652,7 +656,7 @@ async def get_map_data():
                 "population": a.population,
                 "criticality": a.criticality,
                 "priority_score": priority.priority_score if priority else 0,
-                "has_conflict": has_conflict,
+                "conflict_status": "conflicting" if has_conflict else "none",
                 "elevation_m": a.location.elevation_m,
             },
         })
@@ -671,6 +675,7 @@ async def get_map_data():
                 "conflict_status": b.conflict_status.value,
                 "capacity": b.capacity,
                 "on_road": b.on_road,
+                "priority_score": 0,
             },
         })
 
@@ -903,3 +908,9 @@ async def get_plan():
             "baseline_coverage": state.baseline_plan.coverage_score if state.baseline_plan else 0,
         },
     }
+
+
+# Serve the production frontend from the API host when it has been built.
+frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if frontend_dist.is_dir():
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
