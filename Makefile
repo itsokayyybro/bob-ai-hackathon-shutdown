@@ -12,14 +12,19 @@ help:
 	@echo "  make install      Install all dependencies"
 	@echo "  make dev          Start backend + frontend (use two terminals)"
 	@echo "  make dev-backend  Start backend only (port 8000)"
-	@echo "  make test         Run all tests"
+	@echo "  make test         Run all tests (auto-seeds database)"
 	@echo "  make benchmark    Run benchmark and print results"
 	@echo "  make seed         Reset and seed the database"
 	@echo "  make clean        Remove generated files"
+	@echo ""
+	@echo "Requires: src/data/scenario_nepal_inspired.json (tracked in git)"
 
-install:
+install: check-data
 	cd $(BACKEND_DIR) && $(PYTHON) -m pip install -r requirements.txt -q
 	cd $(FRONTEND_DIR) && npm install --legacy-peer-deps
+
+check-data:
+	@test -f src/data/scenario_nepal_inspired.json || (echo "ERROR: src/data/scenario_nepal_inspired.json not found. Ensure it is tracked in git." && exit 1)
 
 dev-backend:
 	cd $(BACKEND_DIR) && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m uvicorn app.main:app --reload --port 8000 --host 0.0.0.0
@@ -32,8 +37,7 @@ dev: install
 	@echo "Start frontend: make dev-frontend"
 	@echo "(Run each in a separate terminal)"
 
-test:
-	@rm -f $(BACKEND_DIR)/disaster_response.db
+test: seed
 	cd $(BACKEND_DIR) && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m pytest tests/ -v --tb=short
 
 benchmark:

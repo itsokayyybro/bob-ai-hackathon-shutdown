@@ -17,6 +17,8 @@
 
 No Docker, no Kubernetes, no external services required.
 
+> ⚠️ **Required data file:** The scenario file `src/data/scenario_nepal_inspired.json` is required for seeding the database. It is tracked in git despite `.gitignore` patterns. Verify it exists with `ls src/data/scenario_nepal_inspired.json` before proceeding.
+
 ---
 
 ## Quick Start (5 minutes)
@@ -25,6 +27,9 @@ No Docker, no Kubernetes, no external services required.
 # Clone
 git clone <repo-url>
 cd bob-ai-hackathon-shutdown
+
+# Verify the scenario data file is present (required for seeding)
+ls src/data/scenario_nepal_inspired.json
 
 # Install all dependencies
 make install
@@ -49,6 +54,14 @@ open http://localhost:5173
 git clone <repo-url>
 cd bob-ai-hackathon-shutdown
 ```
+
+### 1.5 Verify scenario data
+
+```bash
+ls src/data/scenario_nepal_inspired.json
+```
+
+> ⚠️ If this file is missing, the system cannot seed the database. Ensure the file was tracked in git (it is required despite `.gitignore` patterns).
 
 ### 2. Install backend dependencies
 

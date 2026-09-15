@@ -97,4 +97,7 @@ logs/
 db
 *.json
 *.db
-*.json
+
+# ── Scenario data (must be tracked despite *.json above) ─────────────────────
+!src/data/
+!src/data/**/*.json

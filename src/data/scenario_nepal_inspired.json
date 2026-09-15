@@ -1,0 +1,678 @@
+{
+  "scenario_name": "Bhote Valley Emergency Simulation",
+  "description": "Synthetic Nepal-inspired disaster scenario for the AI Emergency Operations & Resource Orchestration System.",
+  "assets": [
+    {
+      "id": "CC1",
+      "name": "Bhote Valley Command Center",
+      "type": "command_center",
+      "location": {
+        "lat": 28.11,
+        "lon": 85.705,
+        "elevation_m": 1450
+      },
+      "population": 0,
+      "criticality": 0.95,
+      "importance": 1.0,
+      "status": "operational"
+    },
+    {
+      "id": "H1",
+      "name": "Bhote District Hospital",
+      "type": "hospital",
+      "location": {
+        "lat": 28.12,
+        "lon": 85.71,
+        "elevation_m": 1420
+      },
+      "population": 3500,
+      "criticality": 1.0,
+      "importance": 1.0,
+      "status": "operational"
+    },
+    {
+      "id": "HP1",
+      "name": "Gorkha Health Post",
+      "type": "health_post",
+      "location": {
+        "lat": 28.105,
+        "lon": 85.72,
+        "elevation_m": 1500
+      },
+      "population": 800,
+      "criticality": 0.8,
+      "importance": 0.8,
+      "status": "operational"
+    },
+    {
+      "id": "HP2",
+      "name": "Sindhupalchok Health Post",
+      "type": "health_post",
+      "location": {
+        "lat": 28.09,
+        "lon": 85.69,
+        "elevation_m": 1380
+      },
+      "population": 600,
+      "criticality": 0.8,
+      "importance": 0.8,
+      "status": "operational"
+    },
+    {
+      "id": "S1",
+      "name": "Manakamana School",
+      "type": "school",
+      "location": {
+        "lat": 28.115,
+        "lon": 85.715,
+        "elevation_m": 1480
+      },
+      "population": 450,
+      "criticality": 0.6,
+      "importance": 0.6,
+      "status": "operational"
+    },
+    {
+      "id": "S2",
+      "name": "Bhote Higher Secondary School",
+      "type": "school",
+      "location": {
+        "lat": 28.095,
+        "lon": 85.7,
+        "elevation_m": 1350
+      },
+      "population": 380,
+      "criticality": 0.6,
+      "importance": 0.6,
+      "status": "operational"
+    },
+    {
+      "id": "SH1",
+      "name": "Tatopani Shelter",
+      "type": "shelter",
+      "location": {
+        "lat": 28.1,
+        "lon": 85.73,
+        "elevation_m": 1520
+      },
+      "population": 200,
+      "criticality": 0.75,
+      "importance": 0.75,
+      "status": "operational"
+    },
+    {
+      "id": "HPwr1",
+      "name": "Bhote Hydropower Station",
+      "type": "hydropower",
+      "location": {
+        "lat": 28.13,
+        "lon": 85.68,
+        "elevation_m": 1600
+      },
+      "population": 0,
+      "criticality": 0.85,
+      "importance": 0.85,
+      "status": "operational"
+    },
+    {
+      "id": "V1",
+      "name": "Bhote Bazar",
+      "type": "village",
+      "location": {
+        "lat": 28.118,
+        "lon": 85.712,
+        "elevation_m": 1440
+      },
+      "population": 1200,
+      "criticality": 0.55,
+      "importance": 0.55,
+      "status": "operational"
+    },
+    {
+      "id": "V2",
+      "name": "Kritipur",
+      "type": "village",
+      "location": {
+        "lat": 28.098,
+        "lon": 85.705,
+        "elevation_m": 1370
+      },
+      "population": 950,
+      "criticality": 0.55,
+      "importance": 0.55,
+      "status": "operational"
+    },
+    {
+      "id": "V3",
+      "name": "Gorkhe Gaun",
+      "type": "village",
+      "location": {
+        "lat": 28.125,
+        "lon": 85.735,
+        "elevation_m": 1550
+      },
+      "population": 750,
+      "criticality": 0.55,
+      "importance": 0.55,
+      "status": "operational"
+    },
+    {
+      "id": "V4",
+      "name": "Laprak",
+      "type": "village",
+      "location": {
+        "lat": 28.085,
+        "lon": 85.685,
+        "elevation_m": 1300
+      },
+      "population": 600,
+      "criticality": 0.55,
+      "importance": 0.55,
+      "status": "operational"
+    },
+    {
+      "id": "V5",
+      "name": "Mohoriyekharka",
+      "type": "village",
+      "location": {
+        "lat": 28.13,
+        "lon": 85.72,
+        "elevation_m": 1470
+      },
+      "population": 500,
+      "criticality": 0.55,
+      "importance": 0.55,
+      "status": "operational"
+    },
+    {
+      "id": "RB1",
+      "name": "Supply Base Alpha",
+      "type": "resource_base",
+      "location": {
+        "lat": 28.1,
+        "lon": 85.695,
+        "elevation_m": 1390
+      },
+      "population": 0,
+      "criticality": 0.5,
+      "importance": 0.5,
+      "status": "operational"
+    },
+    {
+      "id": "RB2",
+      "name": "Supply Base Beta",
+      "type": "resource_base",
+      "location": {
+        "lat": 28.135,
+        "lon": 85.71,
+        "elevation_m": 1580
+      },
+      "population": 0,
+      "criticality": 0.5,
+      "importance": 0.5,
+      "status": "operational"
+    }
+  ],
+  "roads": [
+    {
+      "id": "R1",
+      "name": "Ridge Road A-B",
+      "from_node": "CC1",
+      "to_node": "H1",
+      "distance_km": 8.5,
+      "travel_time_min": 18,
+      "status": "open",
+      "risk": 0.15,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R2",
+      "name": "Valley Road B-C",
+      "from_node": "H1",
+      "to_node": "HP1",
+      "distance_km": 6.2,
+      "travel_time_min": 14,
+      "status": "open",
+      "risk": 0.1,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R3",
+      "name": "Eastern Corridor C-D",
+      "from_node": "HP1",
+      "to_node": "S1",
+      "distance_km": 5.0,
+      "travel_time_min": 11,
+      "status": "open",
+      "risk": 0.12,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R4",
+      "name": "Western Trail D-E",
+      "from_node": "S1",
+      "to_node": "SH1",
+      "distance_km": 7.5,
+      "travel_time_min": 16,
+      "status": "open",
+      "risk": 0.2,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R5",
+      "name": "Northern Pass E-F",
+      "from_node": "SH1",
+      "to_node": "V3",
+      "distance_km": 9.0,
+      "travel_time_min": 20,
+      "status": "open",
+      "risk": 0.25,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R6",
+      "name": "South Ridge G-H",
+      "from_node": "V3",
+      "to_node": "HPwr1",
+      "distance_km": 10.0,
+      "travel_time_min": 22,
+      "status": "open",
+      "risk": 0.18,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R7",
+      "name": "Main Valley Highway",
+      "from_node": "CC1",
+      "to_node": "RB1",
+      "distance_km": 5.5,
+      "travel_time_min": 12,
+      "status": "open",
+      "risk": 0.1,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R8",
+      "name": "Central Connector I-J",
+      "from_node": "RB1",
+      "to_node": "V1",
+      "distance_km": 4.0,
+      "travel_time_min": 9,
+      "status": "open",
+      "risk": 0.1,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R9",
+      "name": "Eastern Link K-L",
+      "from_node": "V1",
+      "to_node": "V2",
+      "distance_km": 6.5,
+      "travel_time_min": 14,
+      "status": "open",
+      "risk": 0.15,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R10",
+      "name": "Northern Spur M-N",
+      "from_node": "V2",
+      "to_node": "S2",
+      "distance_km": 5.5,
+      "travel_time_min": 12,
+      "status": "open",
+      "risk": 0.12,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R11",
+      "name": "Western Ridge O-P",
+      "from_node": "S2",
+      "to_node": "HP2",
+      "distance_km": 4.5,
+      "travel_time_min": 10,
+      "status": "open",
+      "risk": 0.15,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R12",
+      "name": "Southern Connector Q-R",
+      "from_node": "HP2",
+      "to_node": "V4",
+      "distance_km": 7.0,
+      "travel_time_min": 15,
+      "status": "open",
+      "risk": 0.2,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R13",
+      "name": "Mountain Trail S-T",
+      "from_node": "V4",
+      "to_node": "V5",
+      "distance_km": 8.0,
+      "travel_time_min": 18,
+      "status": "open",
+      "risk": 0.3,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    },
+    {
+      "id": "R14",
+      "name": "Helix Ridge U-V",
+      "from_node": "V5",
+      "to_node": "RB2",
+      "distance_km": 6.0,
+      "travel_time_min": 13,
+      "status": "open",
+      "risk": 0.15,
+      "vehicle_restrictions": [],
+      "confidence": 1.0
+    }
+  ],
+  "bridges": [
+    {
+      "id": "B1",
+      "name": "Bhote Koshi Main Bridge",
+      "on_road": "R2",
+      "location": {
+        "lat": 28.108,
+        "lon": 85.715,
+        "elevation_m": 1470
+      },
+      "status": "open",
+      "capacity": "heavy",
+      "confidence": 1.0
+    },
+    {
+      "id": "B2",
+      "name": "Sunkoshi Crossing",
+      "on_road": "R9",
+      "location": {
+        "lat": 28.102,
+        "lon": 85.708,
+        "elevation_m": 1400
+      },
+      "status": "open",
+      "capacity": "medium",
+      "confidence": 1.0
+    }
+  ],
+  "resources": [
+    {
+      "id": "RT1",
+      "name": "Rescue Team Alpha",
+      "type": "rescue_team",
+      "status": "available",
+      "location_id": "CC1",
+      "capabilities": [
+        "rescue",
+        "evacuation",
+        "verification"
+      ],
+      "capacity": 1,
+      "metadata": {}
+    },
+    {
+      "id": "RT2",
+      "name": "Rescue Team Bravo",
+      "status": "available",
+      "location_id": "CC1",
+      "capabilities": [
+        "rescue",
+        "evacuation",
+        "verification"
+      ],
+      "capacity": 1,
+      "metadata": {},
+      "type": "rescue_team"
+    },
+    {
+      "id": "RT3",
+      "name": "Rescue Team Charlie",
+      "status": "available",
+      "location_id": "RB1",
+      "capabilities": [
+        "rescue",
+        "evacuation",
+        "verification"
+      ],
+      "capacity": 1,
+      "metadata": {},
+      "type": "rescue_team"
+    },
+    {
+      "id": "A1",
+      "name": "Ambulance Unit 1",
+      "type": "ambulance",
+      "status": "available",
+      "location_id": "H1",
+      "capabilities": [
+        "medical_response"
+      ],
+      "capacity": 1,
+      "metadata": {}
+    },
+    {
+      "id": "A2",
+      "name": "Ambulance Unit 2",
+      "type": "ambulance",
+      "status": "available",
+      "location_id": "HP1",
+      "capabilities": [
+        "medical_response"
+      ],
+      "capacity": 1,
+      "metadata": {}
+    },
+    {
+      "id": "ET1",
+      "name": "Engineering Team 1",
+      "type": "engineering_team",
+      "status": "available",
+      "location_id": "RB1",
+      "capabilities": [
+        "engineering",
+        "verification"
+      ],
+      "capacity": 1,
+      "metadata": {}
+    },
+    {
+      "id": "SV1",
+      "name": "Supply Vehicle 1",
+      "type": "supply_vehicle",
+      "status": "available",
+      "location_id": "RB2",
+      "capabilities": [
+        "supply_delivery"
+      ],
+      "capacity": 1,
+      "metadata": {}
+    },
+    {
+      "id": "MU1",
+      "name": "Medical Unit 1",
+      "type": "medical_unit",
+      "status": "available",
+      "location_id": "H1",
+      "capabilities": [
+        "medical_response",
+        "evacuation"
+      ],
+      "capacity": 1,
+      "metadata": {}
+    }
+  ],
+  "simulation_events": [
+    {
+      "id": "EVT-001",
+      "time_offset_min": 0,
+      "event_type": "normal_state",
+      "description": "Initial state \u2014 all infrastructure operational",
+      "entity_id": null,
+      "source_type": "simulation",
+      "observation_type": null,
+      "value": null,
+      "confidence": 1.0,
+      "severity": 0.5
+    },
+    {
+      "id": "EVT-002",
+      "time_offset_min": 15,
+      "event_type": "flood_detection",
+      "description": "Satellite detects rising water levels near Bhote Koshi",
+      "entity_id": "V3",
+      "source_type": "satellite",
+      "observation_type": "flood_level",
+      "value": "flooded",
+      "confidence": 0.85,
+      "severity": 0.7
+    },
+    {
+      "id": "EVT-003",
+      "time_offset_min": 30,
+      "event_type": "bridge_damage_report",
+      "description": "B1 structural damage reported by field team",
+      "entity_id": "B1",
+      "source_type": "field_report",
+      "observation_type": "bridge_status",
+      "value": "partially_blocked",
+      "confidence": 0.82,
+      "severity": 0.8
+    },
+    {
+      "id": "EVT-004",
+      "time_offset_min": 45,
+      "event_type": "conflicting_bridge_report",
+      "description": "Conflicting report: B1 may still be passable",
+      "entity_id": "B1",
+      "source_type": "field_report",
+      "observation_type": "bridge_status",
+      "value": "open",
+      "confidence": 0.5,
+      "severity": 0.3
+    },
+    {
+      "id": "EVT-005",
+      "time_offset_min": 60,
+      "event_type": "road_blockage",
+      "description": "Landslide blocks R7 main highway",
+      "entity_id": "R7",
+      "source_type": "field_report",
+      "observation_type": "road_status",
+      "value": "blocked",
+      "confidence": 0.9,
+      "severity": 0.9
+    },
+    {
+      "id": "EVT-006",
+      "time_offset_min": 75,
+      "event_type": "hospital_demand_surge",
+      "description": "HP1 overloaded with casualties from flood",
+      "entity_id": "HP1",
+      "source_type": "hospital",
+      "observation_type": "capacity",
+      "value": "overloaded",
+      "confidence": 0.95,
+      "severity": 0.9
+    },
+    {
+      "id": "EVT-007",
+      "time_offset_min": 90,
+      "event_type": "resource_unavailable",
+      "description": "RT2 rescue team unavailable due to road blockage",
+      "entity_id": "RT2",
+      "source_type": "field_report",
+      "observation_type": "resource_status",
+      "value": "unavailable",
+      "confidence": 1.0,
+      "severity": 0.8
+    },
+    {
+      "id": "EVT-008",
+      "time_offset_min": 105,
+      "event_type": "bridge_confirmed_blocked",
+      "description": "B2 confirmed blocked by flood waters",
+      "entity_id": "B2",
+      "source_type": "satellite",
+      "observation_type": "bridge_status",
+      "value": "blocked",
+      "confidence": 0.88,
+      "severity": 0.85
+    },
+    {
+      "id": "EVT-009",
+      "time_offset_min": 120,
+      "event_type": "village_isolation_confirmed",
+      "description": "V3 (Gorkhe Gaun) isolated by road damage",
+      "entity_id": "V3",
+      "source_type": "field_report",
+      "observation_type": "accessibility",
+      "value": "isolated",
+      "confidence": 0.9,
+      "severity": 0.85
+    },
+    {
+      "id": "EVT-010",
+      "time_offset_min": 135,
+      "event_type": "satellite_observation",
+      "description": "Satellite confirms widespread flooding in northern sector",
+      "entity_id": "V4",
+      "source_type": "satellite",
+      "observation_type": "flood_level",
+      "value": "flooded",
+      "confidence": 0.8,
+      "severity": 0.7
+    },
+    {
+      "id": "EVT-011",
+      "time_offset_min": 150,
+      "event_type": "alternate_route_opened",
+      "description": "Alternate trail opened for V3 access",
+      "entity_id": "R5",
+      "source_type": "field_report",
+      "observation_type": "road_status",
+      "value": "open",
+      "confidence": 0.7,
+      "severity": 0.5
+    },
+    {
+      "id": "EVT-012",
+      "time_offset_min": 165,
+      "event_type": "school_evacuation",
+      "description": "S1 students evacuated to shelter SH1",
+      "entity_id": "S1",
+      "source_type": "field_report",
+      "observation_type": "capacity",
+      "value": "evacuation_required",
+      "confidence": 0.92,
+      "severity": 0.7
+    },
+    {
+      "id": "EVT-013",
+      "time_offset_min": 180,
+      "event_type": "satellite_observation",
+      "description": "Satellite confirms flood waters receding in southern sector",
+      "entity_id": "V5",
+      "source_type": "satellite",
+      "observation_type": "flood_level",
+      "value": "open",
+      "confidence": 0.75,
+      "severity": 0.3
+    }
+  ]
+}
