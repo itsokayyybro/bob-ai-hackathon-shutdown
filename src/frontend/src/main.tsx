@@ -1,15 +1,18 @@
-import './index.css'
-import App from './App'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import App from './App'
+import { AppErrorBoundary } from './components/AsyncState'
+import './index.css'
 
-const rootEl = document.getElementById('root')
-if (!rootEl) {
+const rootElement = document.getElementById('root')
+if (!rootElement) {
   throw new Error('Root element not found. Ensure index.html contains <div id="root"></div>.')
 }
 
-createRoot(rootEl).render(
+createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </StrictMode>,
 )
