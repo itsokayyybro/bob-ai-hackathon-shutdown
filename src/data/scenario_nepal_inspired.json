@@ -1,6 +1,9 @@
 {
   "scenario_name": "Bhote Valley Emergency Simulation",
   "description": "Synthetic Nepal-inspired disaster scenario for the AI Emergency Operations & Resource Orchestration System.",
+  "scenario_type": "monsoon_flood_landslide",
+  "geography": "Nepal-inspired",
+  "synthetic": true,
   "assets": [
     {
       "id": "CC1",

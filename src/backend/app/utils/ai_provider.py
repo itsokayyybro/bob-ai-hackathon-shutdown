@@ -45,7 +45,8 @@ class DeterministicProvider(AIProvider):
 
     def generate_situation_summary(self, state_summary: dict) -> str:
         """Generate BLUF from structured state."""
-        lines = ["## SITUATION REPORT — BHOTE VALLEY EMERGENCY\n"]
+        from app.scenario import get_scenario_name
+        lines = [f"## SITUATION REPORT — {get_scenario_name().upper()}\n"]
         lines.append(f"**Simulation Time:** T+{state_summary.get('sim_time_min', 0)} minutes\n")
 
         top_priorities = state_summary.get("top_priorities", [])

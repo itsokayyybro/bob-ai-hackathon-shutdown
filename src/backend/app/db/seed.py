@@ -5,33 +5,23 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime
-from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import (
     AssetDB, RoadDB, BridgeDB, ResourceDB, SimEventDB
 )
+# Scenario loading and path resolution live in app.scenario so that scenario
+# identity has a single owner (see B2). Re-exported here because
+# SimulationEngine.reset() imports _load_scenario from this module.
+from app.scenario import (  # noqa: F401
+    SCENARIO_FILE,
+    SCENARIO_FILENAME,
+    load_scenario as _load_scenario,
+)
 
 logger = logging.getLogger(__name__)
-
-SCENARIO_FILE = Path(__file__).parent.parent.parent.parent.parent / "src" / "data" / "scenario_nepal_inspired.json"
-
-
-def _load_scenario() -> dict:
-    # Try multiple paths (dev vs installed)
-    candidates = [
-        Path(__file__).parent.parent.parent.parent.parent / "src" / "data" / "scenario_nepal_inspired.json",
-        Path("/workspaces/bob-ai-hackathon-shutdown/src/data/scenario_nepal_inspired.json"),
-        Path("src/data/scenario_nepal_inspired.json"),
-    ]
-    for p in candidates:
-        if p.exists():
-            with open(p) as f:
-                return json.load(f)
-    raise FileNotFoundError("scenario_nepal_inspired.json not found")
 
 
 async def seed_database(session: AsyncSession) -> None:

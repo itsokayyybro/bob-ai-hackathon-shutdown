@@ -3,6 +3,7 @@ FastAPI application — AI Emergency Operations & Resource Orchestration System.
 
 Endpoints:
   GET  /health
+  GET  /scenario
   GET  /situation
   GET  /entities
   GET  /entities/{id}
@@ -22,6 +23,7 @@ Endpoints:
   GET  /map-data
   POST /ai/question
   GET  /audit
+  POST /decisions/{id}/confirm
 """
 from __future__ import annotations
 
@@ -37,16 +39,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 
 from app.config import settings
 from app.db.database import get_db, init_db, DecisionDB, AuditDB, ObservationDB
 from app.db.seed import seed_database
-from app.engines.simulation import sim_engine, world_state
+from app.scenario import get_scenario_metadata, get_scenario_name
+from app.engines.simulation import sim_engine, world_state, persist_audit_record
 from app.engines.graph_engine import network as road_network
 from app.engines.benchmark import run_benchmark
 from app.models.domain import (
-    ObservationType, SourceType, RoadStatus, ResourceStatus
+    ObservationType, SourceType, RoadStatus, ResourceStatus,
+    OperatorDecisionStatus
 )
 from app.utils.ai_provider import get_ai_provider
 
@@ -112,6 +116,16 @@ class RouteRequest(BaseModel):
     vehicle_type: str = "heavy"
 
 
+class ConfirmDecisionRequest(BaseModel):
+    """Operator response to a recommendation.
+
+    `status` is typed as the enum so an unsupported value is rejected with 422
+    by request validation rather than reaching the handler.
+    """
+    status: OperatorDecisionStatus
+    operator_notes: Optional[str] = None
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Health
 # ─────────────────────────────────────────────────────────────────────────────
@@ -125,6 +139,44 @@ async def health():
         "assets": len(world_state.assets),
         "observations": len(world_state.observations),
         "pending_events": len(world_state.unprocessed_events),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Scenario metadata
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/scenario")
+async def get_scenario():
+    """Active scenario identity plus live simulation progress.
+
+    Scenario identity is read from the scenario data file (see app.scenario),
+    never from literals embedded in handler code.
+    """
+    state = world_state
+    meta = get_scenario_metadata()
+
+    processed = len(state.processed_event_ids)
+    pending = len(state.unprocessed_events)
+    total = len(state.all_events)
+
+    if processed == 0:
+        sim_status = "not_started"
+    elif pending > 0:
+        sim_status = "in_progress"
+    else:
+        sim_status = "completed"
+
+    return {
+        **meta,
+        "simulation": {
+            "status": sim_status,
+            "current_time_min": state.current_time_min,
+            "current_event_index": processed,
+            "total_events": total,
+            "processed_events": processed,
+            "pending_events": pending,
+        },
     }
 
 
@@ -172,7 +224,7 @@ async def get_situation():
 
     return {
         "sim_time_min": state.current_time_min,
-        "scenario": "Bhote Valley Emergency Simulation",
+        "scenario": get_scenario_name(),
         "top_priorities": [
             {
                 "entity_id": p.entity_id,
@@ -382,6 +434,32 @@ async def post_route(request: RouteRequest):
 # Simulation
 # ─────────────────────────────────────────────────────────────────────────────
 
+async def _affected_decision_ids(session: AsyncSession) -> list[str]:
+    """Decision ids that need re-review after the latest plan changes (B6).
+
+    Scoped per the decision-currency model: for each entity touched by a plan
+    change, return the recommendations from the CURRENT generation plus any
+    historical row an operator has already acted on. Superseded rows nobody
+    responded to are excluded — returning every historical row for an entity
+    would bury the live recommendation among stale ones.
+    """
+    changes = world_state.last_plan_changes
+    entity_ids = {c.entity_id for c in changes if c.entity_id}
+    if not entity_ids:
+        return []
+
+    result = await session.execute(
+        select(DecisionDB).where(
+            DecisionDB.target_entity_id.in_(entity_ids),
+            or_(
+                DecisionDB.plan_generation == world_state.plan_generation,
+                DecisionDB.operator_status.isnot(None),
+            ),
+        )
+    )
+    return [row.id for row in result.scalars()]
+
+
 @app.post("/simulate/next")
 async def simulate_next(session: AsyncSession = Depends(get_db)):
     """Process the next simulation event."""
@@ -391,6 +469,8 @@ async def simulate_next(session: AsyncSession = Depends(get_db)):
             "status": "no_more_events",
             "message": "All simulation events have been processed.",
             "sim_time_min": world_state.current_time_min,
+            "plan_changes": [],
+            "affected_decision_ids": [],
         }
 
     # Return updated situation
@@ -405,6 +485,9 @@ async def simulate_next(session: AsyncSession = Depends(get_db)):
             "entity_id": evt.entity_id,
         },
         "situation_update": situation,
+        # B6: additive. Every pre-existing key above is unchanged.
+        "plan_changes": [c.model_dump(mode="json") for c in world_state.last_plan_changes],
+        "affected_decision_ids": await _affected_decision_ids(session),
     }
 
 
@@ -469,9 +552,16 @@ async def inject_event(
 
     situation = await get_situation()
     return {
+        # NOTE: status stays "event_injected" and the event id stays under
+        # "event_id". B6's illustrative JSON shows "event_processed"/"event",
+        # but those are this endpoint's existing contract and the frontend
+        # depends on them, so the new keys are added alongside rather than
+        # renaming anything.
         "status": "event_injected",
         "event_id": evt.id,
         "situation_update": situation,
+        "plan_changes": [c.model_dump(mode="json") for c in world_state.last_plan_changes],
+        "affected_decision_ids": await _affected_decision_ids(session),
     }
 
 
@@ -521,32 +611,123 @@ async def optimize(session: AsyncSession = Depends(get_db)):
 # Decisions
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _evidence_last_verified(entity_id: Optional[str]) -> Optional[str]:
+    """Most recent evidence verification timestamp for an entity (B7).
+
+    Read straight off the fused EvidenceSummary objects already held in world
+    state — nothing is re-fused or re-queried here.
+    """
+    if not entity_id:
+        return None
+    summaries = world_state.get_all_evidence_for_entity(entity_id)
+    if not summaries:
+        return None
+    return max(s.last_verified for s in summaries).isoformat()
+
+
+def _recommendation_context(
+    entity_id: Optional[str],
+    task_id: Optional[str],
+    resource_id: Optional[str],
+) -> dict[str, Any]:
+    """Fields the evaluation criteria require alongside a recommendation (B7).
+
+    All values are read from the authoritative in-memory state: PriorityScore
+    for accessibility and supporting factors, EvidenceSummary for the last
+    verification, and the live allocation for route feasibility and ETA.
+
+    These describe the state NOW, not the state when a superseded decision was
+    made. Route feasibility and ETA are null unless the exact (task, resource)
+    pairing is still in the current plan, so a historical recommendation is not
+    presented with another pairing's numbers.
+    """
+    priority = world_state.priorities.get(entity_id) if entity_id else None
+    resource = world_state.resources.get(resource_id) if resource_id else None
+
+    alloc = None
+    plan = world_state.current_plan
+    if plan and task_id and resource_id:
+        alloc = next(
+            (
+                a for a in plan.allocations
+                if a.task_id == task_id and a.resource_id == resource_id
+            ),
+            None,
+        )
+
+    return {
+        "priority_score": priority.priority_score if priority else None,
+        "supporting_factors": list(priority.supporting_factors) if priority else [],
+        # Required by Eval Doc Screen 3 ("Ground route blocked").
+        "target_entity_accessibility": priority.accessibility_factor if priority else None,
+        # Required by Eval Doc Screen 3 ("Last field verification").
+        "last_evidence_verified": _evidence_last_verified(entity_id),
+        "resource_type": getattr(resource.type, "value", resource.type) if resource else None,
+        "capability": [getattr(c, "value", c) for c in resource.capabilities] if resource else [],
+        "route_feasible": (alloc.route.feasible if alloc and alloc.route else None),
+        "estimated_arrival_min": alloc.estimated_arrival_min if alloc else None,
+    }
+
+
+def _serialize_decision(row: DecisionDB) -> dict[str, Any]:
+    """Shared serialization for every decision-returning endpoint.
+
+    Single definition so /decisions, /decisions/{id} and the confirm endpoint
+    cannot drift apart.
+    """
+    return {
+        "id": row.id,
+        "timestamp": row.timestamp.isoformat(),
+        "recommended_action": row.recommended_action,
+        "target_entity_id": row.target_entity_id,
+        "resource_id": row.resource_id,
+        "task_id": row.task_id,
+        "priority": row.priority,
+        "confidence": row.confidence,
+        "reasons": json.loads(row.reasons_json or "[]"),
+        "evidence_ids": json.loads(row.evidence_ids_json or "[]"),
+        "constraints": json.loads(row.constraints_json or "[]"),
+        "alternatives_considered": json.loads(row.alternatives_json or "[]"),
+        "human_verification_required": row.human_verification_required,
+        "simulation_time_min": row.simulation_time_min,
+        # Correction 4: currency. `is_current` is derived, never stored.
+        "plan_generation": row.plan_generation,
+        "is_current": row.plan_generation == world_state.plan_generation,
+        # B3: operator response.
+        "operator_status": row.operator_status,
+        "operator_notes": row.operator_notes,
+        # B7: current-state context required by the evaluation criteria.
+        **_recommendation_context(row.target_entity_id, row.task_id, row.resource_id),
+    }
+
+
 @app.get("/decisions")
 async def get_decisions(
     limit: int = Query(default=20),
+    current_only: bool = Query(default=False),
+    task_id: Optional[str] = Query(default=None),
     session: AsyncSession = Depends(get_db),
 ):
-    """Recent decisions with explanations."""
-    result = await session.execute(
-        select(DecisionDB).order_by(DecisionDB.timestamp.desc()).limit(limit)
-    )
-    decisions = []
-    for row in result.scalars():
-        decisions.append({
-            "id": row.id,
-            "timestamp": row.timestamp.isoformat(),
-            "recommended_action": row.recommended_action,
-            "target_entity_id": row.target_entity_id,
-            "resource_id": row.resource_id,
-            "priority": row.priority,
-            "confidence": row.confidence,
-            "reasons": json.loads(row.reasons_json or "[]"),
-            "constraints": json.loads(row.constraints_json or "[]"),
-            "alternatives_considered": json.loads(row.alternatives_json or "[]"),
-            "human_verification_required": row.human_verification_required,
-            "simulation_time_min": row.simulation_time_min,
-        })
-    return {"decisions": decisions}
+    """Recent decisions with explanations.
+
+    `current_only` restricts to the live plan generation; `task_id` returns the
+    full recommendation history for one task, which is how B4's system
+    recommendation → operator decision → new recommendation sequence is read
+    back.
+    """
+    stmt = select(DecisionDB)
+    if current_only:
+        stmt = stmt.where(DecisionDB.plan_generation == world_state.plan_generation)
+    if task_id:
+        stmt = stmt.where(DecisionDB.task_id == task_id)
+    stmt = stmt.order_by(DecisionDB.timestamp.desc()).limit(limit)
+
+    result = await session.execute(stmt)
+    decisions = [_serialize_decision(row) for row in result.scalars()]
+    return {
+        "decisions": decisions,
+        "current_plan_generation": world_state.plan_generation,
+    }
 
 
 @app.get("/decisions/{decision_id}")
@@ -571,20 +752,53 @@ async def get_decision(
     explanation = provider.explain_decision(decision_data)
 
     return {
-        "id": row.id,
-        "timestamp": row.timestamp.isoformat(),
-        "recommended_action": row.recommended_action,
-        "target_entity_id": row.target_entity_id,
-        "resource_id": row.resource_id,
-        "priority": row.priority,
-        "confidence": row.confidence,
-        "reasons": json.loads(row.reasons_json or "[]"),
-        "constraints": json.loads(row.constraints_json or "[]"),
-        "alternatives_considered": json.loads(row.alternatives_json or "[]"),
-        "human_verification_required": row.human_verification_required,
-        "simulation_time_min": row.simulation_time_min,
+        **_serialize_decision(row),
         "ai_explanation": explanation,
     }
+
+
+@app.post("/decisions/{decision_id}/confirm")
+async def confirm_decision(
+    decision_id: str,
+    request: ConfirmDecisionRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    """Record a human operator's response to a recommendation (B3).
+
+    Writes only the operator_* fields. The recommendation itself —
+    recommended_action, reasons, confidence, evidence — is never altered, so the
+    record of what the system advised stays intact alongside what the human
+    decided.
+
+    An invalid status is rejected as 422 by request validation before this body
+    runs, because `status` is typed as OperatorDecisionStatus.
+    """
+    result = await session.execute(select(DecisionDB).where(DecisionDB.id == decision_id))
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, f"Decision '{decision_id}' not found")
+
+    previous_status = row.operator_status
+    new_status = request.status.value
+
+    row.operator_status = new_status
+    row.operator_notes = request.operator_notes
+    await session.commit()
+
+    # Reuse the engine's audit helper (in-memory, served by GET /audit), then
+    # persist the same record so a human commitment survives a restart.
+    record = world_state._audit(
+        "operator_decision",
+        entity_id=row.target_entity_id,
+        previous={"operator_status": previous_status},
+        new={"operator_status": new_status, "notes": request.operator_notes},
+        reason=f"Operator {new_status} decision {decision_id}",
+        decision_id=decision_id,
+    )
+    await persist_audit_record(session, record)
+
+    await session.refresh(row)
+    return _serialize_decision(row)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -735,7 +949,7 @@ async def get_map_data():
         "type": "FeatureCollection",
         "features": features + road_features + resource_features,
         "metadata": {
-            "scenario": "Bhote Valley Emergency Simulation",
+            "scenario": get_scenario_name(),
             "sim_time_min": state.current_time_min,
         },
     }
@@ -844,26 +1058,60 @@ async def get_ai_situation():
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/audit")
-async def get_audit(limit: int = Query(default=50)):
-    """Recent audit log entries."""
+async def get_audit(
+    limit: int = Query(default=50),
+    session: AsyncSession = Depends(get_db),
+):
+    """Recent audit log entries.
+
+    Unions the in-memory log (every engine state change this session) with the
+    persisted audit_log table (operator actions, which survive a restart),
+    deduplicated by record id. Record ids are unique per AuditRecord, so an
+    entry present in both appears once.
+    """
     state = world_state
-    recent = list(reversed(state.audit_log[-limit:]))
-    return {
-        "audit_log": [
-            {
-                "id": r.id,
-                "timestamp": r.timestamp.isoformat(),
-                "event_type": r.event_type,
-                "entity_id": r.entity_id,
-                "previous_state": r.previous_state,
-                "new_state": r.new_state,
-                "reason": r.reason,
-                "confidence": r.confidence,
-                "sim_time_min": r.simulation_time_min,
-            }
-            for r in recent
-        ]
-    }
+
+    entries: dict[str, dict[str, Any]] = {}
+
+    result = await session.execute(select(AuditDB))
+    for row in result.scalars():
+        entries[row.id] = {
+            "id": row.id,
+            "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+            "event_type": row.event_type,
+            "entity_id": row.entity_id,
+            "previous_state": json.loads(row.previous_state_json) if row.previous_state_json else None,
+            "new_state": json.loads(row.new_state_json) if row.new_state_json else None,
+            "decision_id": row.decision_id,
+            "reason": row.reason,
+            "confidence": row.confidence,
+            "sim_time_min": row.simulation_time_min,
+            "persisted": True,
+        }
+
+    for r in state.audit_log:
+        if r.id in entries:
+            continue
+        entries[r.id] = {
+            "id": r.id,
+            "timestamp": r.timestamp.isoformat(),
+            "event_type": r.event_type,
+            "entity_id": r.entity_id,
+            "previous_state": r.previous_state,
+            "new_state": r.new_state,
+            "decision_id": r.decision_id,
+            "reason": r.reason,
+            "confidence": r.confidence,
+            "sim_time_min": r.simulation_time_min,
+            "persisted": False,
+        }
+
+    ordered = sorted(
+        entries.values(),
+        key=lambda e: (e["timestamp"] or "", e["id"]),
+        reverse=True,
+    )
+    return {"audit_log": ordered[:limit]}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -893,10 +1141,30 @@ async def get_tasks():
 
 @app.get("/plan")
 async def get_plan():
-    """Current response plan."""
+    """Current response plan, plus the B7 recommendation view."""
     state = world_state
     if not state.current_plan:
-        return {"plan": None, "baseline": None}
+        return {"plan": None, "baseline": None, "recommendations": []}
+
+    # B7: join the plan's decisions to their allocations and to world state, so
+    # one response carries everything the evaluation criteria ask for. This
+    # reuses the optimizer's existing output — no recommendation is recomputed.
+    recommendations = []
+    for decision in state.current_plan.decisions:
+        recommendations.append({
+            "decision_id": decision.decision_id,
+            "task_id": decision.task_id,
+            "target_entity_id": decision.target_entity_id,
+            "resource_id": decision.resource_id,
+            "recommended_action": decision.recommended_action,
+            "explanation": list(decision.reasons),
+            "confidence": decision.confidence,
+            "human_verification_required": decision.human_verification_required,
+            "simulation_time_min": decision.simulation_time_min,
+            **_recommendation_context(
+                decision.target_entity_id, decision.task_id, decision.resource_id
+            ),
+        })
 
     return {
         "plan": state.current_plan.model_dump(mode="json"),
@@ -907,6 +1175,7 @@ async def get_plan():
             "our_coverage": state.current_plan.coverage_score,
             "baseline_coverage": state.baseline_plan.coverage_score if state.baseline_plan else 0,
         },
+        "recommendations": recommendations,
     }
 
 

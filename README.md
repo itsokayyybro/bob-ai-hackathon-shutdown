@@ -120,8 +120,8 @@ See [`docs/setup-guide.md`](docs/setup-guide.md) for complete instructions.
 
 A fully synthetic disaster scenario inspired by mountainous Nepal flood response characteristics:
 
-- **14 assets**: hospital, 2 health posts, 2 schools, shelter, hydropower, command center, 5 villages
-- **12 road segments** + **2 bridges** forming a realistic mountain valley network
+- **15 assets**: command center, hospital, 2 health posts, 2 schools, shelter, hydropower, 5 villages, 2 resource bases
+- **14 road segments** + **2 bridges** forming a realistic mountain valley network. The two bridges sit on specific roads: **B1 on R2** (heavy capacity) and **B2 on R9** (medium)
 - **8 response resources**: 3 rescue teams, 2 ambulances, 1 engineering team, 1 supply vehicle, 1 medical unit
 - **13 scripted events**: flood detection → bridge damage → conflicting reports → road blockage → hospital surge → resource failure → route recovery → isolation confirmation
 

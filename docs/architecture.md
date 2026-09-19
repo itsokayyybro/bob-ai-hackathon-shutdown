@@ -23,7 +23,7 @@ flowchart TD
     end
 
     subgraph Engine ["Simulation & Analytical Engine"]
-        Sim["Simulation Engine\n(tick loop · event injection · state advance)"]
+        Sim["Simulation Engine\n(event-driven · event injection · state advance)"]
         Evidence["Evidence Fusion Module\n(weight · decay · conflict detection)"]
         Impact["Impact & Priority Engine\n(criticality · urgency · scoring)"]
         Graph["Graph / Accessibility Engine\n(dynamic edge weights · route planning)"]
@@ -69,6 +69,7 @@ The dashboard surfaces optimizer recommendations as actionable cards — each ca
 FastAPI serves as the single backend entry point for both the dashboard and IBM Bob. It exposes the following REST endpoints:
 
 - `GET /health` — health check with simulation time and counts
+- `GET /scenario` — active scenario identity (name, type, geography, entity counts) plus live simulation progress
 - `GET /situation` — current situation overview (priorities, blocked infra, conflicts, plan)
 - `GET /entities` — all assets, roads, and bridges
 - `GET /entities/{id}` — single entity with evidence and priority data
@@ -76,18 +77,21 @@ FastAPI serves as the single backend entry point for both the dashboard and IBM 
 - `GET /priorities` — priority-ranked list of all entities
 - `GET /resources` — all resources with current status
 - `GET /routes?origin=X&destination=Y&vehicle_type=Z` — calculate feasible route
+- `POST /routes` — same route calculation with a JSON body
 - `POST /simulate/next` — process the next simulation event
 - `POST /simulate/auto` — process all remaining events
 - `POST /simulate/event` — inject a custom event
 - `POST /simulate/reset` — reset simulation to initial state
 - `POST /optimize` — trigger resource optimization (AI + baseline comparison)
-- `GET /decisions` — recent decisions with explanations
+- `GET /decisions` — decisions with explanations; supports `current_only` and `task_id` filters
 - `GET /decisions/{id}` — single decision with AI explanation
+- `POST /decisions/{id}/confirm` — record an operator's accept / reject / modified response
 - `GET /benchmark` — run benchmark (AI vs baseline)
 - `GET /timeline` — full simulation timeline
 - `GET /map-data` — GeoJSON map data for the frontend
 - `POST /ai/question` — natural-language operator Q&A
-- `GET /audit` — recent audit log entries
+- `GET /ai/situation` — generated situation brief derived from actual state
+- `GET /audit` — audit log entries (persisted rows unioned with the in-session log)
 - `GET /tasks` — all current tasks
 - `GET /plan` — current response plan
 
@@ -95,17 +99,36 @@ The MCP server wraps a subset of these endpoints as registered Bob tools via HTT
 
 ### Simulation Engine
 
-The simulation engine drives the Bhote Valley scenario as a discrete time-stepped process. Each tick advances simulated time by a configurable interval (default: 15 minutes). On each tick, the engine:
+The simulation engine drives the Bhote Valley scenario as a **discrete event-driven
+process — there is no tick loop or background timer.** Nothing advances unless a
+caller asks it to. `POST /simulate/next` pops the next unprocessed event and jumps
+the simulated clock straight to that event's `time_offset_min`; the scheduled
+Nepal sequence happens to be spaced 15 minutes apart (T+0 through T+180), which is
+a property of the scenario data, not of a fixed interval in the engine.
 
-1. Injects scheduled observations (new field reports, drone imagery updates, sensor readings) according to the scenario script
-2. Updates the raw observation store in SQLite
-3. Triggers the Evidence Fusion Module to reprocess affected subjects
-4. Triggers the Impact and Priority Engine to recalculate affected location scores
-5. Triggers the Graph Engine to recompute edge weights for affected route segments
-6. Triggers the Resource Optimizer to evaluate whether current allocations remain optimal
-7. Publishes any threshold-crossing events to the alert queue
+Processing one event runs this pipeline, in order:
 
-The simulation engine also supports **manual event injection** via the API — operators or demo facilitators can inject a new field report or infrastructure status change at any time.
+1. Creates an `Observation` from the event and persists it to SQLite
+2. Applies any direct state change (bridge/road status, resource availability,
+   asset status) and writes an audit record
+3. Re-fuses **all** observations for every entity, recomputing weights, freshness
+   and conflict flags
+4. Recalculates priority scores for every scored asset
+5. Regenerates the task set from scratch (task ids are deterministic:
+   `TASK-{asset_id}-{task_type}`)
+6. Re-runs the resource optimizer, producing a new `ResponsePlan` and inserting a
+   new generation of decision rows
+7. Diffs the new plan against the pre-event snapshot to produce `plan_changes`
+
+Note that steps 3–5 are full recomputations rather than incremental updates, and
+that fused evidence, priorities, tasks and plans are held in memory only — they
+are rebuilt every cycle. Only entities, observations, decisions and sim events are
+persisted.
+
+The engine also supports **manual event injection** via `POST /simulate/event`,
+which runs the identical pipeline. Injected events are persisted with an
+`EVT-INJ-*` id and deliberately survive a reset, so they are replayed on the next
+run-through.
 
 ### Evidence Fusion Module
 
@@ -117,21 +140,63 @@ freshness(obs) = exp(-λ × age_hours)
 ```
 Where λ (lambda) is the decay rate parameter, configurable per observation category:
 
-| Category | λ (decay rate) | Half-life |
+λ is keyed on the observation type. These are the values actually configured in
+`app/config.py` (`freshness_lambda_*`):
+
+| Observation type | λ per hour | Half-life |
 |---|---|---|
-| Infrastructure status | 0.35 | ~2.0 hours |
-| Population count | 0.10 | ~6.9 hours |
-| Medical severity | 0.25 | ~2.8 hours |
-| Road passability | 0.40 | ~1.7 hours |
-| Weather/flood level | 0.50 | ~1.4 hours |
+| `flood_level` | 3.0 | ~14 minutes |
+| `bridge_status` | 2.0 | ~21 minutes |
+| `capacity` (hospital load) | 2.0 | ~21 minutes |
+| `road_status` | 1.5 | ~28 minutes |
+| `structural` | 0.5 | ~83 minutes |
+| `population` | 0.1 | ~6.9 hours |
+| anything else (default) | 1.0 | ~42 minutes |
+
+The short half-lives are deliberate: a bridge report goes stale fast, a population
+count does not.
 
 **Evidence weight:**
 ```
 weight(obs) = source_reliability × confidence × freshness
 ```
-Source reliability is a per-source-type baseline (e.g., drone imagery: 0.90, field officer: 0.75, community volunteer: 0.60, historical baseline: 0.40). Confidence is the value reported with or inferred from the observation.
+Source reliability is a per-source-type baseline, configured in `app/config.py`
+(`reliability_*`): simulation 1.00, hospital 0.95, authority_report 0.92, drone
+0.90, field_report 0.88, satellite 0.85, school 0.85, sensor 0.80, emergency_call
+0.75, and 0.70 for any unrecognised source. Confidence is the value carried on the
+observation itself.
 
-**Conflict detection:** When two observations for the same subject produce fused values that differ by more than a configurable threshold (default: 0.3 normalized units), the module flags an active conflict, records both contributing observations, and propagates a reduced confidence score to downstream consumers.
+**Conflict detection:** observations are grouped by *normalized* value — the
+canonical category a raw string maps to, so `"collapsed"`, `"impassable"` and
+`"blocked"` all count as the same claim. The fused best value is the group with the
+greatest total weight. A conflict is flagged when the **second** strongest group
+holds at least `conflict_weight_difference_threshold` (default 0.3) of the *total*
+evidence weight. It is a share-of-support test, not a numeric difference between
+two fused values.
+
+When a conflict is flagged the summary records the supporting observations (the
+winning group) and the conflicting observations (the runner-up group) separately,
+carries a reduced confidence, and attaches a recommendation to seek field
+verification before dispatching.
+
+Worked example from the Nepal scenario — bridge B1, measured at T+45:
+
+| Observation | Source | Confidence | Freshness | Weight |
+|---|---|---|---|---|
+| `partially_blocked` (EVT-003, T+30) | field_report (0.88) | 0.82 | 0.6065 | **0.4377** |
+| `open` (EVT-004, T+45) | field_report (0.88) | 0.50 | 1.0000 | **0.4400** |
+
+The two reports normalize to **different** categories, so this is one supporting
+observation and one conflicting observation with `source_count = 2` — not two
+supporting observations. Total weight is 0.8777, giving support shares of 0.4987
+and 0.5013: a margin of 0.26 percentage points. The summary is correctly flagged
+`conflicting` with a `very_low` confidence of 0.2206.
+
+Which value wins here is genuinely marginal and would flip under any change to λ,
+source reliability or event timing. That is the honest characteristic of the
+example: it demonstrates that the system *detects and surfaces* the contradiction
+rather than resolving it confidently, which is why the recommendation is to verify
+in the field.
 
 ### Impact & Priority Engine
 
@@ -205,11 +270,29 @@ Evidence quality assessment and scoring are **never delegated to the LLM**. Bob'
 
 ## Data Flow Summary
 
-1. Simulation tick fires → new observations written to SQLite
-2. Evidence Fusion reads new observations, recomputes weights and fused values, writes updated evidence records and flags conflicts
-3. Priority Engine reads updated evidence, recomputes criticality and priority scores, writes to `locations` table
-4. Graph Engine reads updated infrastructure evidence, recomputes edge accessibility, invalidates stale routes
-5. Optimizer reads current priorities, resources, and graph state, generates updated recommendation set
-6. FastAPI exposes current state via REST; SSE stream pushes delta events to dashboard
-7. Bob tool calls arrive via MCP → FastAPI → returns structured data → Bob formats and presents to operator
-8. Operator confirms allocation → `POST /actions/allocate` → written to `allocations` + `audit_log` → replanning cycle triggered
+1. A caller invokes `POST /simulate/next` (or `POST /simulate/event`) → the next
+   event is applied and its observation is written to SQLite
+2. Evidence Fusion re-fuses all observations, recomputing weights, freshness and
+   fused values, and flagging conflicts. Fused summaries are held in memory
+3. Priority Engine recomputes criticality and priority for every scored asset,
+   also in memory
+4. Graph Engine edge weights are updated in place when a road or bridge status
+   changes; routes are recomputed on demand by the optimizer
+5. Optimizer reads current priorities, resources and graph state, generates the
+   new recommendation set, and inserts a new generation of `decisions` rows
+6. The new plan is diffed against the pre-event snapshot to produce `plan_changes`
+   and `affected_decision_ids`, returned on the same response
+7. FastAPI exposes current state via REST. **The dashboard polls; there is no SSE
+   stream or WebSocket** — push transport is deliberately out of scope
+8. Bob tool calls arrive via MCP → FastAPI → returns structured data → Bob formats
+   and presents to the operator
+9. The operator accepts or rejects a recommendation via
+   `POST /decisions/{decision_id}/confirm` → `operator_status` and
+   `operator_notes` are written to that decision row and an audit record with
+   `event_type=operator_decision` is written to `audit_log`
+
+Two things step 9 deliberately does **not** do: it does not alter the stored
+recommendation (the system's advice and the human's response are kept separately),
+and it does not dispatch anything. Autonomous dispatch is out of scope, so
+`human_verification_required` is always true and acting on a confirmed decision
+remains a human activity outside this system.

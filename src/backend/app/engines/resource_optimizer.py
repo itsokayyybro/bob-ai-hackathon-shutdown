@@ -77,6 +77,47 @@ def _score_pair(
     return task.priority * cap_bonus * (0.4 + 0.6 * time_efficiency)
 
 
+def _build_decision(
+    resource: Resource,
+    task: Task,
+    route: Optional[Route],
+    travel_time: float,
+    candidate_resources: list[Resource],
+    simulation_time_min: int,
+) -> DecisionExplanation:
+    """
+    Build the DecisionExplanation describing a single (resource, task) pairing.
+
+    Single source of truth for decision content so that the greedy pass and the
+    local-improvement pass can never describe different pairings. See
+    ``_local_improve``, which must rebuild affected decisions after a swap.
+    """
+    reasons = [
+        f"Task priority: {task.priority:.2f}",
+        f"Resource capability match: {task.task_type.value}",
+        f"Estimated travel time: {travel_time:.0f} minutes",
+    ]
+    if route and route.feasible:
+        reasons.append(f"Route via {len(route.path_nodes)} nodes, {route.total_distance_km:.1f}km")
+    else:
+        reasons.append("⚠ No direct route — resource may need alternate path")
+
+    return DecisionExplanation(
+        recommended_action=f"Assign {resource.name} to task: {task.name}",
+        target_entity_id=task.target_entity_id,
+        resource_id=resource.id,
+        task_id=task.id,
+        priority=task.priority,
+        confidence=0.85 if route and route.feasible else 0.50,
+        reasons=reasons,
+        constraints=[f"Resource type: {resource.type}", f"Task type: {task.task_type.value}"],
+        alternatives_considered=[
+            f"Other resources: {[r.id for r in candidate_resources if r.id != resource.id and _can_perform(r, task)]}"
+        ],
+        simulation_time_min=simulation_time_min,
+    )
+
+
 def optimize_allocation(
     resources: list[Resource],
     tasks: list[Task],
@@ -168,29 +209,9 @@ def optimize_allocation(
         )
         allocations.append(allocation)
 
-        # Create decision explanation
-        reasons = [
-            f"Task priority: {task.priority:.2f}",
-            f"Resource capability match: {task.task_type.value}",
-            f"Estimated travel time: {tt:.0f} minutes",
-        ]
-        if route and route.feasible:
-            reasons.append(f"Route via {len(route.path_nodes)} nodes, {route.total_distance_km:.1f}km")
-        else:
-            reasons.append("⚠ No direct route — resource may need alternate path")
-
-        decision = DecisionExplanation(
-            recommended_action=f"Assign {resource.name} to task: {task.name}",
-            target_entity_id=task.target_entity_id,
-            resource_id=resource_id,
-            priority=task.priority,
-            confidence=0.85 if route and route.feasible else 0.50,
-            reasons=reasons,
-            constraints=[f"Resource type: {resource.type}", f"Task type: {task.task_type.value}"],
-            alternatives_considered=[
-                f"Other resources: {[r.id for r in available_resources if r.id != resource_id and _can_perform(r, task)]}"
-            ],
-            simulation_time_min=simulation_time_min,
+        # Create decision explanation. Index-aligned with `allocations`.
+        decision = _build_decision(
+            resource, task, route, tt, available_resources, simulation_time_min
         )
         decisions.append(decision)
 
@@ -281,22 +302,40 @@ def _local_improve(
 
                 if swapped_total < current_total * 0.95:  # 5% improvement threshold
                     # Apply swap
+                    new_route_i = routes.get((r1_id, t2_id))
+                    new_tt_i = travel_times.get((r1_id, t2_id), 0.0)
+                    new_route_j = routes.get((r2_id, t1_id))
+                    new_tt_j = travel_times.get((r2_id, t1_id), 0.0)
+
                     allocations[i] = AllocationResult(
                         task_id=t2_id,
                         resource_id=r1_id,
-                        route=routes.get((r1_id, t2_id)),
-                        estimated_arrival_min=travel_times.get((r1_id, t2_id), 0.0),
+                        route=new_route_i,
+                        estimated_arrival_min=new_tt_i,
                         priority_score=a1.priority_score,
                         explanation=f"{r1.name} reassigned to {t2.name} after swap optimization",
                     )
                     allocations[j] = AllocationResult(
                         task_id=t1_id,
                         resource_id=r2_id,
-                        route=routes.get((r2_id, t1_id)),
-                        estimated_arrival_min=travel_times.get((r2_id, t1_id), 0.0),
+                        route=new_route_j,
+                        estimated_arrival_min=new_tt_j,
                         priority_score=a2.priority_score,
                         explanation=f"{r2.name} reassigned to {t1.name} after swap optimization",
                     )
+
+                    # Rebuild the matching decision records. `decisions` is
+                    # index-aligned with `allocations`; without this the
+                    # persisted DecisionDB rows would describe the pre-swap
+                    # pairing, so any join from a decision to an allocation on
+                    # task/resource would be wrong.
+                    decisions[i] = _build_decision(
+                        r1, t2, new_route_i, new_tt_i, resources, simulation_time_min
+                    )
+                    decisions[j] = _build_decision(
+                        r2, t1, new_route_j, new_tt_j, resources, simulation_time_min
+                    )
+
                     improved = True
                     logger.debug(f"Swap improved: {current_total:.1f} → {swapped_total:.1f}")
 

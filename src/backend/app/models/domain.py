@@ -111,6 +111,19 @@ class ConfidenceLevel(str, Enum):
     VERY_LOW = "very_low"  # < 0.25
 
 
+class OperatorDecisionStatus(str, Enum):
+    """A human operator's response to a system recommendation.
+
+    MODIFIED means the operator accepted the recommendation with changes that
+    they describe in operator_notes. It records the human's intent only — the
+    system does not re-dispatch or reassign resources on the strength of it,
+    because autonomous dispatch is out of scope.
+    """
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    MODIFIED = "modified"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Geography & Location
 # ─────────────────────────────────────────────────────────────────────────────
@@ -267,6 +280,9 @@ class DecisionExplanation(BaseModel):
     recommended_action: str
     target_entity_id: Optional[str] = None
     resource_id: Optional[str] = None
+    # Exact join key to AllocationResult.task_id (B7). Optional so that
+    # decisions not tied to a specific task remain representable.
+    task_id: Optional[str] = None
     priority: float = 0.5
     confidence: float = 0.5
     reasons: list[str] = Field(default_factory=list)
@@ -345,6 +361,29 @@ class AllocationResult(BaseModel):
     priority_score: float = 0.0
     explanation: str = ""
     calculated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+
+
+class PlanChange(BaseModel):
+    """A meaningful difference between the previous and new response plan.
+
+    Produced by diffing the existing optimizer's output before and after an
+    event, keyed on task_id (task ids are deterministic and stable across
+    replans). This is a comparison only — it never re-runs routing or
+    allocation, which remain the optimizer's job.
+    """
+    task_id: str
+    entity_id: Optional[str] = None
+    previous_resource_id: Optional[str] = None
+    new_resource_id: Optional[str] = None
+    previous_eta_min: Optional[float] = None
+    new_eta_min: Optional[float] = None
+    previous_route_feasible: Optional[bool] = None
+    new_route_feasible: Optional[bool] = None
+    change_reason: str = ""
+    triggering_event_id: Optional[str] = None
+    triggering_event_type: Optional[str] = None
+    affected_infrastructure_id: Optional[str] = None
+    review_required: bool = False
 
 
 class ResponsePlan(BaseModel):

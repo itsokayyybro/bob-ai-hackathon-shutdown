@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Emergency Operations &amp; Resource Orchestration System — Solution Proposal &amp; Implementation Status</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm 15mm; }
+  @page :first { margin: 0; }
+
+  :root{
+    --ink:#14181f;
+    --ink-soft:#3c4654;
+    --muted:#6b7684;
+    --line:#dbe1e8;
+    --line-soft:#eceff3;
+    --navy:#0b2545;
+    --blue:#12558a;
+    --accent:#0f62fe;
+    --green:#0e7a4a;
+    --amber:#9a6400;
+    --red:#a52121;
+    --wash:#f5f7fa;
+  }
+
+  *{ box-sizing:border-box; }
+
+  html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  body{
+    font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
+    font-size:9.4pt;
+    line-height:1.52;
+    color:var(--ink);
+    margin:0;
+  }
+
+  /* ---------- cover ---------- */
+  .cover{
+    height:297mm;
+    padding:30mm 22mm 20mm 22mm;
+    background:linear-gradient(160deg,#0b2545 0%,#123a63 52%,#0f62fe 140%);
+    color:#fff;
+    display:flex;
+    flex-direction:column;
+    page-break-after:always;
+  }
+  .cover .kicker{
+    font-size:8.4pt; letter-spacing:.22em; text-transform:uppercase;
+    color:#9fc4f0; font-weight:600; margin-bottom:5mm;
+  }
+  .cover h1{
+    font-size:30pt; line-height:1.14; font-weight:700; margin:0 0 6mm 0; letter-spacing:-.4pt;
+  }
+  .cover .sub{
+    font-size:12.5pt; color:#d3e3f7; font-weight:300; line-height:1.45; margin:0 0 3mm 0;
+  }
+  .cover .rule{ width:26mm; height:3px; background:#4d9bf5; margin:7mm 0 7mm 0; }
+  .cover .doctype{
+    font-size:10.5pt; color:#fff; font-weight:600; letter-spacing:.04em;
+  }
+  .cover .spacer{ flex:1; }
+  .cover .meta{
+    border-top:1px solid rgba(255,255,255,.28);
+    padding-top:6mm;
+    display:flex;
+    gap:12mm;
+    font-size:8.8pt;
+  }
+  .cover .meta div{ flex:1; }
+  .cover .meta .lbl{
+    color:#9fc4f0; text-transform:uppercase; letter-spacing:.14em; font-size:7.2pt;
+    font-weight:600; display:block; margin-bottom:1.6mm;
+  }
+  .cover .meta .val{ color:#fff; line-height:1.55; }
+  .cover .chips{ margin-bottom:8mm; }
+  .cover .chip{
+    display:inline-block; border:1px solid rgba(255,255,255,.42); border-radius:20px;
+    padding:1.4mm 4mm; font-size:8pt; margin:0 2mm 2.2mm 0; color:#eaf3ff;
+  }
+
+  /* ---------- typography ---------- */
+  h2{
+    font-size:14pt; color:var(--navy); margin:0 0 3.5mm 0; padding-bottom:2mm;
+    border-bottom:2px solid var(--navy); font-weight:700; letter-spacing:-.2pt;
+    page-break-after:avoid;
+  }
+  h2 .num{ color:var(--accent); margin-right:2.5mm; }
+  h3{
+    font-size:10.6pt; color:var(--blue); margin:6mm 0 2.2mm 0; font-weight:700;
+    page-break-after:avoid;
+  }
+  h4{
+    font-size:9.6pt; color:var(--ink); margin:4.5mm 0 1.6mm 0; font-weight:700;
+    page-break-after:avoid;
+  }
+  p{ margin:0 0 2.6mm 0; text-align:justify; }
+  ul,ol{ margin:0 0 2.8mm 0; padding-left:5.2mm; }
+  li{ margin-bottom:1.3mm; }
+  strong{ font-weight:600; color:var(--ink); }
+  code{
+    font-family:"Cascadia Mono",Consolas,"Courier New",monospace;
+    font-size:8.4pt; background:var(--wash); border:1px solid var(--line-soft);
+    border-radius:2px; padding:0 1.1mm; color:#123a63;
+  }
+  .section{ page-break-before:always; }
+  .nobreak{ page-break-inside:avoid; }
+
+  /* ---------- tables ---------- */
+  table{
+    width:100%; border-collapse:collapse; margin:2.5mm 0 4mm 0; font-size:8.5pt;
+    page-break-inside:avoid;
+  }
+  th{
+    background:var(--navy); color:#fff; text-align:left; font-weight:600;
+    padding:1.9mm 2.4mm; font-size:8pt; letter-spacing:.02em;
+  }
+  td{ padding:1.7mm 2.4mm; border-bottom:1px solid var(--line); vertical-align:top; }
+  tbody tr:nth-child(even) td{ background:#fafbfd; }
+  table.tight td, table.tight th{ padding:1.3mm 2mm; font-size:8pt; }
+  td.mono, th.mono{ font-family:Consolas,"Courier New",monospace; font-size:8pt; }
+  .ctr{ text-align:center; }
+
+  /* ---------- callouts ---------- */
+  .box{
+    border:1px solid var(--line); border-left:3px solid var(--accent);
+    background:var(--wash); padding:3mm 3.6mm; margin:3mm 0 4mm 0; border-radius:2px;
+    page-break-inside:avoid;
+  }
+  .box .t{
+    font-weight:700; font-size:8.6pt; text-transform:uppercase; letter-spacing:.1em;
+    color:var(--navy); margin-bottom:1.6mm;
+  }
+  .box p:last-child{ margin-bottom:0; }
+  .box.warn{ border-left-color:var(--amber); background:#fdf8ee; }
+  .box.warn .t{ color:var(--amber); }
+  .box.ok{ border-left-color:var(--green); background:#f1f9f4; }
+  .box.ok .t{ color:var(--green); }
+  .box.risk{ border-left-color:var(--red); background:#fdf3f3; }
+  .box.risk .t{ color:var(--red); }
+
+  /* ---------- formula ---------- */
+  .formula{
+    font-family:Consolas,"Courier New",monospace; font-size:8.6pt;
+    background:#0f1b2d; color:#dce7f5; padding:2.8mm 3.4mm; border-radius:3px;
+    margin:2.4mm 0 3.4mm 0; line-height:1.68; white-space:pre-wrap;
+    page-break-inside:avoid;
+  }
+  .formula .c{ color:#7f93ad; }
+  .formula .k{ color:#7fd1a8; }
+
+  /* ---------- status pills ---------- */
+  .pill{
+    display:inline-block; font-size:7.2pt; font-weight:700; padding:.5mm 1.9mm;
+    border-radius:8px; letter-spacing:.04em; white-space:nowrap;
+  }
+  .p-done{ background:#dcf3e6; color:var(--green); border:1px solid #a9ddc0; }
+  .p-part{ background:#fdf0d8; color:var(--amber); border:1px solid #edcd93; }
+  .p-gap{ background:#fbe0e0; color:var(--red); border:1px solid #edb4b4; }
+  .p-plan{ background:#e4ecf8; color:var(--blue); border:1px solid #b6cbe8; }
+
+  /* ---------- metric strip ---------- */
+  .metrics{ display:flex; gap:2.6mm; margin:3mm 0 4mm 0; page-break-inside:avoid; }
+  .metric{
+    flex:1; border:1px solid var(--line); border-top:3px solid var(--accent);
+    border-radius:2px; padding:2.6mm 2mm; text-align:center; background:#fff;
+  }
+  .metric .v{ font-size:16pt; font-weight:700; color:var(--navy); line-height:1.1; }
+  .metric .l{
+    font-size:6.9pt; text-transform:uppercase; letter-spacing:.09em; color:var(--muted);
+    margin-top:1.2mm; font-weight:600; line-height:1.3;
+  }
+
+  /* ---------- pipeline / arch diagram ---------- */
+  .arch{ margin:3mm 0 4mm 0; page-break-inside:avoid; }
+  .layer{
+    border:1px solid var(--line); border-radius:3px; margin-bottom:2.2mm; overflow:hidden;
+  }
+  .layer .hd{
+    background:var(--navy); color:#fff; font-size:7.4pt; font-weight:700;
+    letter-spacing:.14em; text-transform:uppercase; padding:1.5mm 2.6mm;
+  }
+  .layer .bd{ display:flex; gap:2mm; padding:2.4mm; background:#fbfcfe; }
+  .node{
+    flex:1; border:1px solid var(--line); border-radius:2px; background:#fff;
+    padding:2.2mm 2mm; text-align:center;
+  }
+  .node .n{ font-size:8.4pt; font-weight:700; color:var(--navy); line-height:1.25; }
+  .node .d{ font-size:7.1pt; color:var(--muted); margin-top:.9mm; line-height:1.35; }
+  .node.eng{ border-top:2px solid var(--accent); }
+  .arrow{
+    text-align:center; color:var(--accent); font-size:10pt; line-height:1;
+    margin:-.6mm 0 1.4mm 0; font-weight:700;
+  }
+
+  .flow{ margin:3mm 0 4mm 0; page-break-inside:avoid; }
+  .step{
+    display:flex; gap:3mm; border-left:2px solid var(--line); padding:0 0 3mm 3.4mm;
+    margin-left:2mm; position:relative;
+  }
+  .step:last-child{ border-left-color:transparent; padding-bottom:0; }
+  .step .idx{
+    position:absolute; left:-3.1mm; top:.2mm; width:6mm; height:6mm; border-radius:50%;
+    background:var(--accent); color:#fff; font-size:7.4pt; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .step .body{ padding-left:4.6mm; }
+  .step .ttl{ font-weight:700; font-size:9.2pt; color:var(--navy); }
+  .step .txt{ font-size:8.6pt; color:var(--ink-soft); margin-top:.7mm; text-align:justify; }
+
+  /* ---------- toc ---------- */
+  .toc{ margin-top:2mm; }
+  .toc-row{
+    display:flex; align-items:baseline; gap:2mm; padding:1.5mm 0;
+    border-bottom:1px dotted var(--line);
+  }
+  .toc-row .n{
+    color:var(--accent); font-weight:700; width:7mm; flex-shrink:0; font-size:9pt;
+  }
+  .toc-row .t{ flex:1; font-size:9.4pt; }
+  .toc-row .t small{ color:var(--muted); font-size:8.2pt; display:block; margin-top:.3mm; }
+
+  .two{ display:flex; gap:5mm; }
+  .two > div{ flex:1; }
+  .lead{
+    font-size:10pt; color:var(--ink-soft); line-height:1.6; margin-bottom:4mm;
+  }
+  .footnote{ font-size:7.8pt; color:var(--muted); font-style:italic; margin-top:1.5mm; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+  <div class="kicker">IBM Bob AI Hackathon &middot; Team Shutdown &middot; Open Track</div>
+  <h1>AI Emergency Operations &amp;<br>Resource Orchestration System</h1>
+  <div class="sub">An evidence-aware operational decision engine that turns fragmented,<br>conflicting disaster reports into explainable, continuously replanned response.</div>
+  <div class="rule"></div>
+  <div class="doctype">Solution Proposal &amp; Implementation Status Report</div>
+
+  <div class="spacer"></div>
+
+  <div class="chips">
+    <span class="chip">Evidence fusion with uncertainty</span>
+    <span class="chip">Conflict detection</span>
+    <span class="chip">Graph accessibility routing</span>
+    <span class="chip">Constrained resource optimisation</span>
+    <span class="chip">14 IBM Bob MCP tools</span>
+    <span class="chip">Deterministic &amp; auditable</span>
+  </div>
+
+  <div class="meta">
+    <div>
+      <span class="lbl">Project</span>
+      <span class="val">Bhote Valley Emergency Simulation<br>bob-ai-hackathon-shutdown</span>
+    </div>
+    <div>
+      <span class="lbl">Team</span>
+      <span class="val">Om Prajapati (Lead)<br>Jeet Pandya &middot; Prince Patel<br>Darshan Mandalaywala</span>
+    </div>
+    <div>
+      <span class="lbl">Document status</span>
+      <span class="val">Verified against source tree<br>18 September 2026</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TOC ============ -->
+<div>
+  <h2><span class="num">&mdash;</span>Contents</h2>
+  <div class="toc">
+    <div class="toc-row"><span class="n">1</span><span class="t">Executive Summary<small>What was built, what is verified, what remains</small></span></div>
+    <div class="toc-row"><span class="n">2</span><span class="t">The Problem<small>Information fragmentation in disaster response, and why current tooling fails</small></span></div>
+    <div class="toc-row"><span class="n">3</span><span class="t">Proposed Solution<small>Design principle, the seven-stage decision pipeline, the AI/deterministic boundary</small></span></div>
+    <div class="toc-row"><span class="n">4</span><span class="t">System Architecture<small>Five layers, component responsibilities, data flow</small></span></div>
+    <div class="toc-row"><span class="n">5</span><span class="t">Implementation Status<small>Module-by-module inventory of everything already working</small></span></div>
+    <div class="toc-row"><span class="n">6</span><span class="t">Algorithm Reference<small>Exact formulas, weights and constants as coded</small></span></div>
+    <div class="toc-row"><span class="n">7</span><span class="t">Scenario &amp; Benchmark Harness<small>The 13-event Bhote Valley simulation and AI-vs-baseline comparison</small></span></div>
+    <div class="toc-row"><span class="n">8</span><span class="t">Verification Status<small>Test coverage, what is proven and what is unproven</small></span></div>
+    <div class="toc-row"><span class="n">9</span><span class="t">Gaps, Drift &amp; Limitations<small>Honest accounting of documented-but-absent features and known risks</small></span></div>
+    <div class="toc-row"><span class="n">10</span><span class="t">Roadmap<small>Prioritised next steps</small></span></div>
+    <div class="toc-row"><span class="n">11</span><span class="t">Appendix<small>Repository layout, how to run, dependency inventory</small></span></div>
+  </div>
+
+  <div class="box" style="margin-top:8mm">
+    <div class="t">About this document</div>
+    <p>This report has two jobs. First, it states the proposed solution &mdash; the problem being solved, the design principle behind it, and the architecture that follows from that principle. Second, it gives an accurate, source-verified account of what is already implemented, so that the proposal can be read against reality rather than intent.</p>
+    <p style="margin-top:2mm">Every count, formula, weight and threshold quoted here was read directly from the code in this repository, not from its documentation. Where the existing documentation and the code disagree, the code is treated as authoritative and the discrepancy is recorded in Section&nbsp;9. No code was modified in the preparation of this document.</p>
+  </div>
+</div>
+
+<!-- ============ 1. EXECUTIVE SUMMARY ============ -->
+<div class="section">
+  <h2><span class="num">1</span>Executive Summary</h2>
+
+  <p class="lead">We propose an evidence-aware operational decision engine for disaster response: a system that accepts conflicting, ageing, partially-reliable field reports as its normal input, quantifies what is and is not known, and produces continuously replanned resource allocations that a human coordinator can interrogate and override. The system is built and running end to end.</p>
+
+  <div class="metrics">
+    <div class="metric"><div class="v">5</div><div class="l">Analytical<br>engines</div></div>
+    <div class="metric"><div class="v">24</div><div class="l">REST<br>operations</div></div>
+    <div class="metric"><div class="v">14</div><div class="l">IBM Bob<br>MCP tools</div></div>
+    <div class="metric"><div class="v">64</div><div class="l">Automated<br>tests</div></div>
+    <div class="metric"><div class="v">13</div><div class="l">Scripted<br>sim events</div></div>
+    <div class="metric"><div class="v">~7.9k</div><div class="l">Lines of<br>source</div></div>
+  </div>
+
+  <h3>The core idea</h3>
+  <p>Conventional emergency tooling assumes information is reliable and treats disagreement as an error state. In real disaster response, disagreement is the normal state: a field officer reports a bridge passable at 06:00, a community radio operator reports it swept away at 08:30, and a satellite pass from 04:45 shows rising water. Our design principle is that <strong>uncertainty is a first-class data type, not an afterthought</strong>. Every observation is retained, weighted by source reliability, self-reported confidence and exponential freshness decay, and fused into a single estimate that carries its own confidence and an explicit conflict flag. Nothing downstream &mdash; priority scoring, route planning, resource assignment &mdash; is allowed to forget how well-supported its inputs were.</p>
+
+  <h3>What is implemented</h3>
+  <p>All five analytical engines are complete and deterministic: evidence fusion with conflict detection, criticality and priority scoring, a NetworkX accessibility graph with bridge-capacity and blocked-edge handling, a greedy-plus-local-improvement resource optimiser with a nearest-resource baseline for comparison, and an event-driven simulation engine that re-runs the entire pipeline after every event. These sit behind a FastAPI service exposing 24 operations, a React 19 operational dashboard with a live Leaflet map, and a 14-tool MCP server that lets IBM Bob answer operational questions from real backend state rather than canned text.</p>
+
+  <table class="tight">
+    <thead><tr><th style="width:30%">Component</th><th style="width:14%">Status</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Evidence fusion engine</strong></td><td><span class="pill p-done">COMPLETE</span></td><td>202 lines; weighted fusion, value canonicalisation, 0.3 conflict threshold, verification recommendation</td></tr>
+      <tr><td><strong>Priority &amp; criticality engine</strong></td><td><span class="pill p-done">COMPLETE</span></td><td>244 lines; both weight sets sum to 1.0, asserted by test</td></tr>
+      <tr><td><strong>Graph accessibility engine</strong></td><td><span class="pill p-done">COMPLETE</span></td><td>275 lines; NetworkX DiGraph, Dijkstra on a filtered subgraph, bridge dominance over road state</td></tr>
+      <tr><td><strong>Resource optimiser + baseline</strong></td><td><span class="pill p-done">COMPLETE</span></td><td>360 lines; capability matching, infeasible-route exclusion, pairwise swap improvement</td></tr>
+      <tr><td><strong>Simulation engine</strong></td><td><span class="pill p-done">COMPLETE</span></td><td>855 lines; 13-event script, custom injection, full reset, 10 event-type state handlers</td></tr>
+      <tr><td><strong>FastAPI service</strong></td><td><span class="pill p-done">COMPLETE</span></td><td>916 lines; 24 operations across 23 paths</td></tr>
+      <tr><td><strong>IBM Bob MCP server</strong></td><td><span class="pill p-done">COMPLETE</span></td><td>802 lines; 14 tools, JSON-RPC 2.0 over stdio, all proxying live HTTP</td></tr>
+      <tr><td><strong>React dashboard</strong></td><td><span class="pill p-done">COMPLETE</span></td><td>~1,900 lines; 11 components, Leaflet map, 5-second polling, event injection UI</td></tr>
+      <tr><td><strong>Benchmark harness</strong></td><td><span class="pill p-done">COMPLETE</span></td><td>208 lines; 18 metrics, AI plan vs nearest-resource baseline, no hardcoded results</td></tr>
+      <tr><td><strong>Operator confirm / reject write-back</strong></td><td><span class="pill p-gap">NOT BUILT</span></td><td>No <code>POST /actions/allocate</code>; plans are advisory-only today</td></tr>
+      <tr><td><strong>Durable audit trail</strong></td><td><span class="pill p-part">PARTIAL</span></td><td>In-memory audit log works and is served; the <code>audit_log</code> table is never written</td></tr>
+      <tr><td><strong>Live push to dashboard</strong></td><td><span class="pill p-gap">NOT BUILT</span></td><td>No SSE/WebSocket; the dashboard polls every 5&nbsp;s instead</td></tr>
+      <tr><td><strong>Demo video &amp; hosted deployment</strong></td><td><span class="pill p-gap">NOT DONE</span></td><td><code>demo-video-link.txt</code> and <code>live-demo-url.txt</code> are both placeholders</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box ok">
+    <div class="t">The differentiator</div>
+    <p>When bridge B1 receives two contradictory field reports fifteen minutes apart &mdash; <em>partially blocked</em> at confidence 0.82, then <em>open</em> at confidence 0.50 &mdash; the system does not silently pick a winner. It computes weighted support for each competing value, finds the runner-up holds at least 30&nbsp;% of total evidence weight, flags the subject as <code>conflicting</code>, lowers the confidence propagated to every downstream consumer, and emits a recommendation to verify in the field before dispatching. That conflict then depresses B1's contribution to priority scoring and inflates the effective routing cost of the road it carries. The uncertainty travels with the decision.</p>
+  </div>
+
+  <div class="box warn">
+    <div class="t">What this is not</div>
+    <p>This is a decision-support layer, not an autonomous dispatcher. The optimiser emits recommendations with rationale; <code>DecisionExplanation.human_verification_required</code> defaults to <code>True</code> in the domain model and is never overridden anywhere in the codebase. It is also a closed simulation: there is no live sensor, satellite or telephony ingestion, and every entity, population figure and event in the scenario is synthetic.</p>
+  </div>
+</div>
+
+<!-- ============ 2. PROBLEM ============ -->
+<div class="section">
+  <h2><span class="num">2</span>The Problem</h2>
+
+  <h3>2.1 Information fragmentation is the first casualty</h3>
+  <p>When a major disaster strikes a remote mountainous region, reliable information fails before anything else does. Floods, landslides and earthquakes simultaneously sever roads, cut power, disable cellular infrastructure and displace the very personnel responsible for reporting conditions. What arrives at an emergency operations centre is not a picture of the situation; it is a stream of fragments that disagree with each other and with themselves over time. No single report is complete, no single source is authoritative, and the synthesis has to happen in minutes.</p>
+
+  <p>The coordinator's actual task is therefore not data retrieval. It is inference under time pressure across three simultaneous unknowns: <strong>what is true</strong> (which of these conflicting reports to believe), <strong>what is reachable</strong> (whether the route implied by a dispatch decision still exists), and <strong>what is worth doing next</strong> (which of seven deteriorating sites earns the one remaining ambulance). Each of those three is tractable in isolation. Together, under fatigue, they are where allocation decisions go wrong.</p>
+
+  <h3>2.2 The motivating scenario</h3>
+  <p>Our reference case is modelled on the geography and logistics of a Nepali river valley: a densely settled corridor flanked by steep ridgelines, served by a small number of routes whose bridges are single points of failure. A monsoon flood triggers overlapping crises across five villages, a district hospital, two health posts, two schools, a shelter and a hydropower station within a three-hour window. Eight response units &mdash; three rescue teams, two ambulances, an engineering team, a supply vehicle and a medical unit &mdash; must be allocated while bridges fail, roads block, a rescue team goes mechanically unavailable, and field reports contradict one another.</p>
+
+  <div class="box warn">
+    <div class="t">Synthetic data disclaimer</div>
+    <p>All entities, coordinates, population figures, events and benchmark values in this project are entirely synthetic and generated for simulation purposes. They are proportioned to reflect realistic operational complexity but do not reconstruct any actual event, location or casualty data.</p>
+  </div>
+
+  <h3>2.3 Why existing tooling falls short</h3>
+
+  <table>
+    <thead><tr><th style="width:22%">Approach</th><th style="width:38%">What it does well</th><th>Where it breaks</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>GIS dashboards</strong></td>
+        <td>Visualise incident pins, asset locations and resource positions on a map</td>
+        <td>They display, they do not reason. A dashboard can show a bridge status of &ldquo;unknown&rdquo;; it cannot weigh the age of that report against the reliability of its source and the urgency of the destination. All synthesis is externalised to an operator who is already saturated.</td>
+      </tr>
+      <tr>
+        <td><strong>Conversational assistants</strong></td>
+        <td>Answer questions and retrieve records in natural language</td>
+        <td>A chatbot waits to be asked. It cannot monitor a continuously updating state, notice that an approved route has become impassable, or recompute allocations when a new report lands. Disaster response cannot wait to be asked.</td>
+      </tr>
+      <tr>
+        <td><strong>Commercial routing engines</strong></td>
+        <td>Compute fast, accurate shortest paths under normal conditions</td>
+        <td>They optimise distance and time, not accessibility under degradation. They do not model a road rated passable at hour one and impassable by hour three, and they have no representation for a route that is technically open but operationally unsafe because its only bridge has a structural confidence of 0.4.</td>
+      </tr>
+      <tr>
+        <td><strong>Unaided human prioritisation</strong></td>
+        <td>Contextual judgement, local knowledge, accountability &mdash; irreplaceable</td>
+        <td>Across seven or more simultaneous incidents with degrading information quality, cognitive load, anchoring bias and fatigue produce allocations that systematic analysis measurably improves. The goal is to support this judgement, not replace it.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>2.4 The gap we address</h3>
+  <p>The gap is not a shortage of data or of technology. It is the absence of a layer that can do five things at once:</p>
+  <ol>
+    <li><strong>Fuse conflicting, uncertain, time-decaying observations</strong> into a coherent picture that carries its own confidence</li>
+    <li><strong>Model infrastructure accessibility dynamically</strong>, as conditions and the evidence about them evolve</li>
+    <li><strong>Optimise constrained allocation</strong> across competing priorities and incompatible resource types</li>
+    <li><strong>Replan continuously</strong> as each new observation arrives, rather than producing a single plan</li>
+    <li><strong>Explain itself in natural language</strong>, with every recommendation traceable to the observations that produced it</li>
+  </ol>
+</div>
+
+<!-- ============ 3. SOLUTION ============ -->
+<div class="section">
+  <h2><span class="num">3</span>Proposed Solution</h2>
+
+  <p class="lead">An evidence-aware operational decision engine. It sits between raw observation streams and the coordinator, and its only job is to convert fragments into defensible, confidence-weighted, continuously updated guidance.</p>
+
+  <h3>3.1 Design principle</h3>
+  <p>The system does not wait for a complete and consistent picture before producing recommendations. It treats every observation as partial evidence, quantifies what is known and unknown, and produces the best available guidance given the current information state &mdash; while making its confidence and its reasoning legible to the human who must act. This distinguishes it from passive dashboards, which present data without reasoning, and from autonomous agents, which act without adequate oversight.</p>
+
+  <p>Two consequences follow directly from that principle, and both are implemented. First, <strong>confidence and accessibility are priority inputs, not annotations</strong>: a critically affected village reachable only by a low-confidence route scores differently from an identical village with a confirmed clear route. Second, <strong>the analytical core is deterministic</strong>: evidence weighting, scoring, routing and assignment are closed-form or algorithmic, so every number is reproducible and auditable. The language model is confined to the interface.</p>
+
+  <h3>3.2 The decision pipeline</h3>
+  <p>Seven stages run in sequence. Stages 2 through 6 re-execute in full after every single event, which is what makes the replanning continuous rather than periodic.</p>
+
+  <div class="flow">
+    <div class="step"><span class="idx">1</span><div class="body">
+      <div class="ttl">Observation intake</div>
+      <div class="txt">Reports arrive from nine source classes &mdash; satellite, drone, field report, emergency call, hospital, school, sensor, authority report, simulation &mdash; each carrying a timestamp, a self-reported confidence, a subject entity and an observation type. Nothing is discarded and nothing is trusted unconditionally. Observations are persisted with full provenance.</div>
+    </div></div>
+    <div class="step"><span class="idx">2</span><div class="body">
+      <div class="ttl">Evidence fusion with uncertainty</div>
+      <div class="txt">Observations sharing a subject and attribute are fused into one estimate. Each contributes <code>source_reliability &times; confidence &times; freshness</code>, where freshness decays exponentially with age at a rate tuned per observation type. Competing values are canonicalised into comparable categories, so <em>impassable</em>, <em>collapsed</em> and <em>closed</em> all count as support for <em>blocked</em>. The winner is the value with the greatest weighted support, and it carries a derived confidence rather than inheriting one.</div>
+    </div></div>
+    <div class="step"><span class="idx">3</span><div class="body">
+      <div class="ttl">Conflict detection</div>
+      <div class="txt">If the runner-up value holds at least 30&nbsp;% of total evidence weight, the subject is flagged <code>conflicting</code>, the specific dissenting observation IDs are attached, and a field-verification recommendation is generated. The flag then reduces the confidence factor feeding priority scoring, so an unresolved conflict measurably changes the plan instead of merely appearing in a log.</div>
+    </div></div>
+    <div class="step"><span class="idx">4</span><div class="body">
+      <div class="ttl">Situation assessment and scoring</div>
+      <div class="txt">Fused evidence drives two distinct scores per site. <strong>Criticality</strong> captures intrinsic severity from population, service class, time sensitivity, isolation and damage. <strong>Priority</strong> then folds in what can actually be done, adding urgency, impact, accessibility and evidence confidence. Keeping them separate is deliberate: a site can be critically affected yet correctly deprioritised this hour because no route to it clears the confidence bar.</div>
+    </div></div>
+    <div class="step"><span class="idx">5</span><div class="body">
+      <div class="ttl">Dynamic accessibility graph</div>
+      <div class="txt">The road network is a directed graph whose edge costs encode current condition, not just distance. Blocked edges are removed from consideration entirely; unknown, high-risk and partially-blocked edges carry multiplicative penalties. Bridge state dominates the road that carries it &mdash; a blocked bridge blocks its road outright &mdash; and vehicle weight class is enforced against bridge capacity, so a heavy ambulance is refused a medium-rated crossing that a rescue team may use.</div>
+    </div></div>
+    <div class="step"><span class="idx">6</span><div class="body">
+      <div class="ttl">Constrained resource optimisation</div>
+      <div class="txt">Tasks are generated from the scored situation, then matched to resources under three hard constraints: capability compatibility, resource availability, and route feasibility. Pairs whose route does not exist are eliminated before scoring, which is how blocked-route violations are structurally prevented rather than merely penalised. A greedy pass produces an initial one-to-one assignment; pairwise swaps then refine it where they beat the incumbent by more than 5&nbsp;% on priority-weighted travel time.</div>
+    </div></div>
+    <div class="step"><span class="idx">7</span><div class="body">
+      <div class="ttl">Explanation and human confirmation</div>
+      <div class="txt">Every assignment carries the priority score that motivated it, the constraints that shaped it, the alternatives that were rejected, and a confidence value. IBM Bob renders these as prose on request. The recommendation is advisory by design; the human decides.</div>
+    </div></div>
+  </div>
+
+  <h3>3.3 The AI / deterministic boundary</h3>
+  <p>This boundary is the most important architectural commitment in the system, because it is what makes the output defensible after the fact.</p>
+
+  <table class="tight">
+    <thead><tr><th style="width:34%">Responsibility</th><th style="width:20%">Implementation</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Intent parsing, prose generation</td><td><strong>LLM</strong> (IBM Bob / watsonx)</td><td>Natural language is the model's native domain and carries no analytical risk</td></tr>
+      <tr><td>Evidence weighting &amp; fusion</td><td>Deterministic formula</td><td>Must be auditable; a coordinator can recompute any weight by hand</td></tr>
+      <tr><td>Conflict detection</td><td>Deterministic threshold</td><td>Consistent across runs; zero hallucination surface</td></tr>
+      <tr><td>Criticality &amp; priority scoring</td><td>Deterministic weighted sum</td><td>Reproducible, and the weights are domain-tunable by responders rather than opaque</td></tr>
+      <tr><td>Route planning</td><td>Dijkstra on a filtered graph</td><td>Correct by construction and fast</td></tr>
+      <tr><td>Resource assignment</td><td>Greedy + local improvement</td><td>Explainable per assignment, with a measurable baseline to compare against</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box">
+    <div class="t">Stated as a rule</div>
+    <p>Evidence quality assessment and scoring are never delegated to a language model. Bob's role is interface translation in both directions: turning a coordinator's question into a structured tool call, and turning a structured response into readable prose. If watsonx credentials are absent or the call fails, a deterministic provider generates the same summaries from templates and the analytical output is unchanged.</p>
+  </div>
+</div>
+
+<!-- ============ 4. ARCHITECTURE ============ -->
+<div class="section">
+  <h2><span class="num">4</span>System Architecture</h2>
+
+  <p>Five layers. Each has one responsibility and a defined interface with its neighbours. The engine layer is deliberately free of I/O concerns, which is what makes all five engines unit-testable in isolation &mdash; and they are.</p>
+
+  <div class="arch">
+    <div class="layer">
+      <div class="hd">Consumers</div>
+      <div class="bd">
+        <div class="node"><div class="n">Human Operator</div><div class="d">Reviews plans, confirms or rejects, injects events</div></div>
+        <div class="node"><div class="n">IBM Bob</div><div class="d">Natural-language operational Q&amp;A</div></div>
+      </div>
+    </div>
+    <div class="arrow">&darr;</div>
+    <div class="layer">
+      <div class="hd">Presentation</div>
+      <div class="bd">
+        <div class="node"><div class="n">React&nbsp;19 Dashboard</div><div class="d">Leaflet map &middot; priority feed &middot; entity inspector &middot; resources &middot; metrics &middot; sim controls &middot; chat &mdash; polls every 5&nbsp;s</div></div>
+      </div>
+    </div>
+    <div class="arrow">&darr;</div>
+    <div class="layer">
+      <div class="hd">API &amp; Tool Exposure</div>
+      <div class="bd">
+        <div class="node"><div class="n">FastAPI Service</div><div class="d">24 operations across 23 paths; single backend entry point</div></div>
+        <div class="node"><div class="n">MCP Server</div><div class="d">14 Bob tools; JSON-RPC 2.0 over stdio, proxying HTTP</div></div>
+      </div>
+    </div>
+    <div class="arrow">&darr;</div>
+    <div class="layer">
+      <div class="hd">Simulation &amp; Analytical Engine</div>
+      <div class="bd">
+        <div class="node eng"><div class="n">Simulation</div><div class="d">Event dispatch, world state, task generation, reset</div></div>
+        <div class="node eng"><div class="n">Evidence Fusion</div><div class="d">Weighting, decay, conflict detection</div></div>
+        <div class="node eng"><div class="n">Priority</div><div class="d">Criticality &amp; priority scoring with explanations</div></div>
+        <div class="node eng"><div class="n">Graph</div><div class="d">Accessibility costs, vehicle fit, routing</div></div>
+        <div class="node eng"><div class="n">Optimiser</div><div class="d">Assignment, swap refinement, baseline</div></div>
+      </div>
+    </div>
+    <div class="arrow">&darr;</div>
+    <div class="layer">
+      <div class="hd">Persistence</div>
+      <div class="bd">
+        <div class="node"><div class="n">SQLite &middot; async SQLAlchemy 2.0 + aiosqlite</div><div class="d">8 tables: assets &middot; roads &middot; bridges &middot; resources &middot; observations &middot; decisions &middot; sim_events &middot; audit_log</div></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>4.1 Replanning cycle</h3>
+  <p>The single most important control-flow fact about the system: after <em>every</em> event, whether scripted or operator-injected, the backend runs the same four-stage pipeline before returning. There is no partial or incremental update path, which trades some efficiency for the guarantee that state is never internally inconsistent.</p>
+
+  <div class="formula"><span class="c"># app/engines/simulation.py — executed after every processed or injected event</span>
+_process_event(evt)      <span class="c">→ create observation, mutate asset / road / bridge / resource state</span>
+_fuse_all()              <span class="c">→ re-fuse every (entity, observation_type) group</span>
+_recalculate_priorities()<span class="c">→ rescore all 13 non-infrastructure assets</span>
+_generate_tasks()        <span class="c">→ discard and rebuild the task set from current state</span>
+_run_optimizer()         <span class="c">→ new AI plan + baseline plan, persist decisions</span></div>
+
+  <h3>4.2 State ownership</h3>
+  <p>A module-level <code>WorldState</code> object is the authoritative in-memory store: assets, roads, bridges, resources, observations, the fused-evidence cache keyed by <code>entity:observation_type</code>, priorities, tasks, the current and baseline plans, simulated clock position, and the audit log. SQLite is the durable record for the entities, raw observations, decisions and the event script. Derived artefacts &mdash; fused evidence, priorities, tasks and plans &mdash; are recomputed rather than stored, which means a restart replays cleanly from the observation record.</p>
+
+  <div class="box warn">
+    <div class="t">Architectural note: the clock</div>
+    <p>The existing <code>docs/architecture.md</code> describes a tick loop advancing simulated time in configurable 15-minute intervals. The implementation is <strong>event-driven, not ticked</strong>: processing an event jumps the simulated clock directly to that event's <code>time_offset_min</code>. The 15-minute spacing is a property of the scenario file, not of a configured tick. The behaviour is equivalent for the scripted scenario and simpler to reason about, but the document should be corrected.</p>
+  </div>
+</div>
+
+<!-- ============ 5. IMPLEMENTATION STATUS ============ -->
+<div class="section">
+  <h2><span class="num">5</span>Implementation Status</h2>
+
+  <p class="lead">Everything in this section was read from source in this repository. Line counts are exact; capability claims are traced to the file that implements them.</p>
+
+  <h3>5.1 Code inventory</h3>
+  <table class="tight">
+    <thead><tr><th style="width:36%">File</th><th class="ctr" style="width:11%">Lines</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">backend/app/main.py</td><td class="ctr">916</td><td>FastAPI app, 24 route operations, request models, lifespan seeding, static frontend mount</td></tr>
+      <tr><td class="mono">backend/app/engines/simulation.py</td><td class="ctr">855</td><td><code>WorldState</code>, event dispatch, 10 state-change handlers, task generation, reset</td></tr>
+      <tr><td class="mono">backend/app/engines/resource_optimizer.py</td><td class="ctr">360</td><td>Capability map, pair scoring, greedy assignment, pairwise swap, nearest-resource baseline</td></tr>
+      <tr><td class="mono">backend/app/models/domain.py</td><td class="ctr">381</td><td>10 enums and 16 Pydantic v2 models &mdash; the shared vocabulary</td></tr>
+      <tr><td class="mono">backend/app/utils/ai_provider.py</td><td class="ctr">315</td><td>Provider abstraction, watsonx client, deterministic fallback, keyword Q&amp;A router</td></tr>
+      <tr><td class="mono">backend/app/engines/graph_engine.py</td><td class="ctr">275</td><td>NetworkX DiGraph, edge cost model, bridge dominance, vehicle fit, routing</td></tr>
+      <tr><td class="mono">backend/app/engines/priority_engine.py</td><td class="ctr">244</td><td>Criticality, priority, urgency / isolation / damage / confidence derivation, explanations</td></tr>
+      <tr><td class="mono">backend/app/engines/benchmark.py</td><td class="ctr">208</td><td>18-metric benchmark, AI vs baseline, improvement computation, methodology block</td></tr>
+      <tr><td class="mono">backend/app/engines/evidence_fusion.py</td><td class="ctr">202</td><td>Freshness, weighting, canonicalisation, fusion, conflict detection</td></tr>
+      <tr><td class="mono">backend/app/db/database.py</td><td class="ctr">183</td><td>Async engine, session factory, 8 ORM table definitions, <code>init_db</code></td></tr>
+      <tr><td class="mono">backend/app/db/seed.py</td><td class="ctr">143</td><td>Scenario loading with path fallbacks, idempotent seeding</td></tr>
+      <tr><td class="mono">backend/app/config.py</td><td class="ctr">98</td><td>Every tunable parameter in one place &mdash; reliabilities, decay rates, weights, thresholds</td></tr>
+      <tr><td class="mono">backend/tests/</td><td class="ctr">~1,000</td><td>43 unit tests + 21 integration tests</td></tr>
+      <tr><td class="mono">mcp/server.py</td><td class="ctr">802</td><td>14-tool registry, JSON-RPC 2.0 stdio loop, HTTP proxy to the backend</td></tr>
+      <tr><td class="mono">frontend/src/App.tsx</td><td class="ctr">896</td><td>All 11 React components, polling loop, layout, Leaflet map</td></tr>
+      <tr><td class="mono">frontend/src/{api.ts, main.tsx, *.css}</td><td class="ctr">1,021</td><td>Typed fetch client with <code>ApiError</code>, entry point, hand-written CSS design system</td></tr>
+    </tbody>
+  </table>
+  <p class="footnote">Approximately 7,900 lines of application source excluding lock files, generated assets and documentation.</p>
+
+  <h3>5.2 Evidence fusion engine &mdash; complete</h3>
+  <p>Implements the full weighting chain. Freshness is <code>exp(-&lambda; &times; age_hours)</code> with age measured against the simulated clock and floored at zero. Weight is the product of source reliability, the observation's own confidence, and freshness. Before competing values are compared they are canonicalised into ten categories, so semantically identical reports phrased differently accumulate support together instead of splitting it.</p>
+  <p>Fused confidence is the product of two terms: the fraction of total weight supporting the winning value, and the mean weight of the observations that support it. This is why a lone stale low-confidence report yields low confidence even though it is unopposed. Confidence is then banded into high / medium / low / very&nbsp;low for display. An empty observation set returns <code>unknown</code> at confidence 0.0 rather than raising.</p>
+  <div class="box">
+    <div class="t">Property worth knowing</div>
+    <p>Because the second term is a mean rather than a sum, corroborating duplicates do not raise confidence &mdash; three identical observations of weight <em>w</em> still yield roughly <em>w</em>. Additional independent sources raise confidence only by shrinking the competing fraction. This is conservative and safe, but the value should be read as a support score rather than a calibrated probability.</p>
+  </div>
+
+  <h3>5.3 Graph accessibility engine &mdash; complete</h3>
+  <p>A NetworkX <code>DiGraph</code> in which nodes are asset IDs and each road becomes two directed edges, so the 14 seeded roads yield 28 traversable edges. Routing builds a filtered edge subgraph that excludes three classes of edge &mdash; vehicle-restricted, bridge-capacity-insufficient, and blocked &mdash; then runs Dijkstra weighted by effective cost. Every excluded road is returned to the caller in <code>blocked_alternatives</code>, so the answer explains what was ruled out and not merely what was chosen. Infeasibility is a first-class return value carrying a reason string, never an exception.</p>
+  <p>Bridge state dominates the road that carries it. A blocked bridge forces its road to blocked at risk 1.0; a high-risk, unknown or partially-blocked bridge raises the road's risk to the corresponding penalty; and road confidence becomes the minimum of road and bridge confidence. Vehicle fit is enforced on an ordered capacity scale, so a <em>heavy</em> unit is refused a <em>medium</em> bridge while a <em>medium</em> unit is permitted.</p>
+
+  <h3>5.4 Priority engine &mdash; complete</h3>
+  <p>Both scores are implemented with weights read from configuration, and both weight sets sum to exactly 1.0 &mdash; an invariant asserted by a dedicated unit test rather than assumed. Static per-entity-type tables supply service criticality and time sensitivity for twelve entity types, with a 0.5 default for anything unrecognised. Population is normalised against a 10,000-person reference.</p>
+  <p>The derived inputs are all implemented and all evidence-driven: <strong>urgency</strong> takes the maximum over a mapping of evidence values (destroyed 1.0 down to damaged 0.60) and asset status; <strong>isolation risk</strong> reads confirmed isolation directly and treats a high-confidence blockage as 0.7; <strong>damage severity</strong> multiplies a per-value severity by that value's confidence and takes the maximum; and the <strong>confidence factor</strong> is mean evidence confidence reduced by 15&nbsp;% per active conflict, defaulting to 0.3 where no evidence exists at all. Every score ships with a generated explanation string and a list of supporting factors, including an explicit conflict count.</p>
+  <div class="box">
+    <div class="t">Directional design choice</div>
+    <p>Accessibility and confidence are <em>positive</em> priority terms. An unreachable site therefore loses up to 0.15 of its score and a poorly-evidenced site loses up to 0.10. This encodes &ldquo;prioritise what we can actually act on, with evidence we can actually trust&rdquo; &mdash; and it is why criticality is kept separate, so the underlying need of a deprioritised site remains visible rather than being erased.</p>
+  </div>
+
+  <h3>5.5 Resource optimiser &mdash; complete</h3>
+  <p>Greedy assignment with pairwise local improvement. Eligibility requires both that the resource is available and that the task type appears in that resource type's capability list; the five-entry capability map is explicit, so an ambulance cannot be sent to an engineering task. Routing is performed per candidate pair using the vehicle class implied by the resource type, and pairs whose route is infeasible are dropped before scoring &mdash; structural prevention of blocked-route dispatch rather than a soft penalty.</p>
+  <p>Pairs are scored as <code>priority &times; (0.4 + 0.6 &times; time_efficiency)</code> where time efficiency decays linearly to zero at a 120-minute travel ceiling. The greedy pass takes pairs in descending score order with strict one-to-one matching. Local improvement then runs up to ten passes of pairwise swaps, accepting a swap only when it beats the incumbent by more than 5&nbsp;% on priority-weighted travel time. Each assignment produces a <code>DecisionExplanation</code> carrying reasons, constraints, rejected alternatives and a confidence value.</p>
+  <p>A separate <code>baseline_nearest_assignment</code> implements the naive comparator: take tasks in priority order, give each the feasible resource with the shortest travel time, no refinement. This is what the benchmark measures against, and it is a genuine algorithm rather than a synthetic penalty applied to our own result.</p>
+
+  <h3>5.6 Simulation engine &mdash; complete</h3>
+  <p>Event-driven rather than ticked. Processing an event advances the simulated clock to that event's offset, creates the corresponding observation with full provenance, persists it, dispatches to a state-change handler, then runs the four-stage replanning pipeline. Ten event types have dedicated handlers covering bridge damage, conflicting bridge reports, confirmed bridge blockage, road blockage, alternate route opening, resource unavailability, hospital demand surge, school evacuation, satellite observation and confirmed village isolation.</p>
+  <p>Operator-injected events take the identical path, so anything the scripted scenario can do, a demo facilitator or Bob can do live. Task generation is idempotent: the task set is discarded and rebuilt every cycle with deterministic IDs, infrastructure entity types are excluded, and task type selection requires evidence confidence of at least 0.5 before falling back to asset status. Reset restores all entity state from the scenario file, clears observations, decisions and the audit table, and marks every scripted event unprocessed.</p>
+  <div class="box warn">
+    <div class="t">Two reset caveats found in code</div>
+    <p>Injected events persist as <code>EVT-INJ-*</code> rows and survive a reset, so they are replayed as if scheduled. And the in-memory audit log is not cleared on reset, so it accumulates across cycles. Neither breaks a demo run, but both should be tightened before the system is used for repeated measured comparisons.</p>
+  </div>
+
+  <h3 style="page-break-before:always">5.7 API surface &mdash; 24 operations, complete</h3>
+  <p>One FastAPI application serves both the dashboard and the MCP layer, so there is a single source of truth for state.</p>
+  <table class="tight">
+    <thead><tr><th style="width:9%">Method</th><th style="width:27%">Path</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">GET</td><td class="mono">/health</td><td>Status, simulated clock, asset / observation / pending-event counts</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/situation</td><td>Top-10 priorities, blocked infrastructure, active conflicts, unavailable resources, plan summary</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/entities</td><td>All assets, roads and bridges</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/entities/{id}</td><td>Single entity with its priority and full evidence set</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/evidence/{id}</td><td>Fused evidence summaries plus the raw observations behind them</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/priorities</td><td>Full priority ranking with assigned ranks</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/resources</td><td>All resources with status, location and capabilities</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/routes</td><td>Route query by origin, destination and vehicle type</td></tr>
+      <tr><td class="mono">POST</td><td class="mono">/routes</td><td>Same via request body</td></tr>
+      <tr><td class="mono">POST</td><td class="mono">/simulate/next</td><td>Process the next scripted event and return the new situation</td></tr>
+      <tr><td class="mono">POST</td><td class="mono">/simulate/auto</td><td>Drain all remaining events</td></tr>
+      <tr><td class="mono">POST</td><td class="mono">/simulate/event</td><td>Inject a custom event</td></tr>
+      <tr><td class="mono">POST</td><td class="mono">/simulate/reset</td><td>Reset to initial scenario state</td></tr>
+      <tr><td class="mono">POST</td><td class="mono">/optimize</td><td>Run the optimiser and the baseline, return both with improvement percentage</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/decisions</td><td>Recent decisions with rationale</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/decisions/{id}</td><td>Single decision with a generated natural-language explanation</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/benchmark</td><td>Run the AI-vs-baseline benchmark on current state</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/timeline</td><td>Full event timeline with processed flags</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/map-data</td><td>GeoJSON feature collection for the dashboard map</td></tr>
+      <tr><td class="mono">POST</td><td class="mono">/ai/question</td><td>Natural-language operator Q&amp;A against live state</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/ai/situation</td><td>Generated situation summary</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/audit</td><td>Recent audit entries</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/tasks</td><td>Current generated task set</td></tr>
+      <tr><td class="mono">GET</td><td class="mono">/plan</td><td>Current plan, baseline plan and comparison</td></tr>
+    </tbody>
+  </table>
+
+  <h3>5.8 IBM Bob MCP integration &mdash; 14 tools, complete</h3>
+  <p>The MCP server is a JSON-RPC 2.0 stdio loop implementing <code>initialize</code>, <code>tools/list</code>, <code>tools/call</code> and the initialised notification, with correct error codes for unknown methods, unknown tools, tool exceptions and parse failures. Every tool resolves through a single HTTP helper against the backend, and every tool returns Markdown formatted from live response data. There are no hardcoded answers anywhere in the file. Connection failures are caught and reported as actionable messages rather than propagating as protocol errors.</p>
+  <table class="tight">
+    <thead><tr><th style="width:26%">Tool</th><th style="width:34%">Parameters</th><th>Backing endpoint</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">get_current_situation</td><td>&mdash;</td><td class="mono">GET /situation</td></tr>
+      <tr><td class="mono">get_priority_sites</td><td class="mono">top_n = 5</td><td class="mono">GET /priorities</td></tr>
+      <tr><td class="mono">get_entity_evidence</td><td class="mono">entity_id *</td><td class="mono">GET /evidence/{id}</td></tr>
+      <tr><td class="mono">get_route</td><td class="mono">origin *, destination *, vehicle_type</td><td class="mono">GET /routes</td></tr>
+      <tr><td class="mono">get_resource_status</td><td>&mdash;</td><td class="mono">GET /resources</td></tr>
+      <tr><td class="mono">generate_response_plan</td><td>&mdash;</td><td class="mono">POST /optimize</td></tr>
+      <tr><td class="mono">recalculate_allocation</td><td>&mdash;</td><td class="mono">POST /optimize</td></tr>
+      <tr><td class="mono">simulate_event</td><td class="mono">event_type *, entity_id, observation_type, value, confidence, severity, description, source_type</td><td class="mono">POST /simulate/event</td></tr>
+      <tr><td class="mono">simulate_next_event</td><td>&mdash;</td><td class="mono">POST /simulate/next</td></tr>
+      <tr><td class="mono">explain_decision</td><td class="mono">decision_id *</td><td class="mono">GET /decisions/{id}</td></tr>
+      <tr><td class="mono">get_benchmark_metrics</td><td>&mdash;</td><td class="mono">GET /benchmark</td></tr>
+      <tr><td class="mono">ask_operator_question</td><td class="mono">question *</td><td class="mono">POST /ai/question</td></tr>
+      <tr><td class="mono">get_timeline</td><td>&mdash;</td><td class="mono">GET /timeline</td></tr>
+      <tr><td class="mono">reset_simulation</td><td>&mdash;</td><td class="mono">POST /simulate/reset</td></tr>
+    </tbody>
+  </table>
+  <p class="footnote">* required. The 14 tools map to 13 distinct endpoints: <code>generate_response_plan</code> and <code>recalculate_allocation</code> both call <code>POST /optimize</code> and differ only in presentation framing. <code>top_n</code> is applied as a client-side slice rather than a query parameter.</p>
+
+  <div class="box ok">
+    <div class="t">Why the integration is load-bearing</div>
+    <p>Bob is not a veneer over static text. Asking <em>&ldquo;why is HP1 the top priority?&rdquo;</em> reaches the evidence endpoint and returns actual observation IDs, source types, fused confidence and conflict status. Asking <em>&ldquo;can A1 reach it?&rdquo;</em> executes a real Dijkstra query and names the specific bridges and roads that were excluded. Asking Bob to <em>&ldquo;simulate road R7 blocking&rdquo;</em> injects a real event and the whole pipeline replans. The natural-language layer is a window onto the deterministic engine, which is exactly the boundary Section&nbsp;3.3 sets out.</p>
+  </div>
+
+  <h3>5.9 React dashboard &mdash; complete</h3>
+  <p>React 19 with Vite, TypeScript throughout, and eleven components. All of them render live backend data; there are no placeholder or mock components and no unfinished markers in the source.</p>
+  <table class="tight">
+    <thead><tr><th style="width:24%">Component</th><th>Renders</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">DisasterMap</td><td>Leaflet map with dark CARTO tiles; roads as polylines (blocked roads drawn dashed and heavier), assets / bridges / resources as circle markers sized by priority and coloured by status, with popups</td></tr>
+      <tr><td class="mono">PriorityPanel</td><td>Active-conflict banner plus the top 12 priority cards, each with a score bar and its priority / urgency / accessibility / confidence breakdown</td></tr>
+      <tr><td class="mono">EntityPanel</td><td>Selected entity with status, population, priority bar, generated explanation, factor chips, fused evidence summaries, raw observations and canned question shortcuts</td></tr>
+      <tr><td class="mono">ResourcesPanel</td><td>All resources grouped by status with location and capability detail, overlaid on the map</td></tr>
+      <tr><td class="mono">SimControls</td><td>Next event, auto-play, reset, plus six preset injections and a full custom-event form covering event type, entity, observation type, value and confidence</td></tr>
+      <tr><td class="mono">MetricsPanel</td><td>Six live tiles: AI coverage, baseline coverage, AI travel time, travel saving, conflicts detected, mean decision confidence</td></tr>
+      <tr><td class="mono">AIChatPanel</td><td>Operator chat transcript with pending state, wired to the Q&amp;A endpoint</td></tr>
+      <tr><td class="mono">ErrorBoundary, LoadingScreen, BackendError</td><td>Render-error recovery, connection state and a retry path for backend unavailability</td></tr>
+    </tbody>
+  </table>
+  <p>State is plain React hooks with no external store. A 5-second interval refreshes situation, resources, timeline and map data together; the benchmark is fetched on mount and after every mutation. The Vite dev server proxies <code>/api</code> to the backend, and the backend will serve the built frontend from <code>/</code> when a production build is present.</p>
+
+  <h3>5.10 Persistence and seeding &mdash; complete</h3>
+  <p>Async SQLAlchemy 2.0 over aiosqlite with eight tables: <code>assets</code>, <code>roads</code>, <code>bridges</code>, <code>resources</code>, <code>observations</code>, <code>decisions</code>, <code>sim_events</code> and <code>audit_log</code>. Structured sub-objects are stored as JSON text columns. Schema creation runs at startup; seeding is idempotent and exits early if assets already exist, so repeated launches are safe. Derived state &mdash; fused evidence, priorities, tasks, plans &mdash; is intentionally not persisted, because it is cheaper and safer to recompute it from the observation record than to keep it in sync.</p>
+
+  <h3>5.11 AI provider &mdash; complete with fallback</h3>
+  <p>An abstract provider with three operations: situation summary, decision explanation and operator Q&amp;A. The watsonx implementation lazily imports the IBM SDK and calls <code>ibm/granite-3-8b-instruct</code> at temperature 0.3. A deterministic implementation produces the same three outputs from templates and keyword routing over live state. Selection requires both an API key and a project ID to be present; failure at client construction or generation falls back to the deterministic provider transparently. The system is therefore fully functional with no credentials, which is how it is expected to be demonstrated.</p>
+</div>
+
+<!-- ============ 6. ALGORITHM REFERENCE ============ -->
+<div class="section">
+  <h2><span class="num">6</span>Algorithm Reference</h2>
+  <p class="lead">Every constant below is the literal default in <code>app/config.py</code> or the engine that owns it. All are configurable in one place; none are scattered through the code as magic numbers.</p>
+
+  <h3>6.1 Evidence weighting</h3>
+  <div class="formula"><span class="k">freshness</span>(obs) = exp(-&lambda;[obs_type] &times; age_hours)
+<span class="k">weight</span>(obs)    = reliability[source_type] &times; obs.confidence &times; freshness(obs)
+
+<span class="c">support[v]        = &Sigma; weight(obs) for obs whose canonical value == v</span>
+<span class="c">best_value        = argmax support</span>
+<span class="k">confidence</span>      = min(1, support[best]/&Sigma;weight &times; support[best]/|group[best]|)
+<span class="k">conflict</span>        = support[second]/&Sigma;weight &ge; 0.30</div>
+
+  <div class="two">
+    <div>
+      <h4>Source reliability</h4>
+      <table class="tight">
+        <tbody>
+          <tr><td>Hospital</td><td class="ctr mono">0.95</td></tr>
+          <tr><td>Authority report</td><td class="ctr mono">0.92</td></tr>
+          <tr><td>Drone</td><td class="ctr mono">0.90</td></tr>
+          <tr><td>Field report</td><td class="ctr mono">0.88</td></tr>
+          <tr><td>Satellite</td><td class="ctr mono">0.85</td></tr>
+          <tr><td>School</td><td class="ctr mono">0.85</td></tr>
+          <tr><td>Sensor</td><td class="ctr mono">0.80</td></tr>
+          <tr><td>Emergency call</td><td class="ctr mono">0.75</td></tr>
+          <tr><td>Simulation (ground truth)</td><td class="ctr mono">1.00</td></tr>
+          <tr><td>Unrecognised source</td><td class="ctr mono">0.70</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h4>Freshness decay &lambda; (per hour)</h4>
+      <table class="tight">
+        <thead><tr><th>Observation type</th><th class="ctr">&lambda;</th><th class="ctr">Half-life</th></tr></thead>
+        <tbody>
+          <tr><td>Flood level</td><td class="ctr mono">3.0</td><td class="ctr">14&nbsp;min</td></tr>
+          <tr><td>Bridge status</td><td class="ctr mono">2.0</td><td class="ctr">21&nbsp;min</td></tr>
+          <tr><td>Capacity</td><td class="ctr mono">2.0</td><td class="ctr">21&nbsp;min</td></tr>
+          <tr><td>Road status</td><td class="ctr mono">1.5</td><td class="ctr">28&nbsp;min</td></tr>
+          <tr><td>Structural</td><td class="ctr mono">0.5</td><td class="ctr">1.4&nbsp;h</td></tr>
+          <tr><td>Population</td><td class="ctr mono">0.1</td><td class="ctr">6.9&nbsp;h</td></tr>
+          <tr><td>Default</td><td class="ctr mono">1.0</td><td class="ctr">42&nbsp;min</td></tr>
+        </tbody>
+      </table>
+      <p class="footnote">Fast-moving physical conditions expire quickly; population estimates persist. This is the mechanism by which a fresh drone report outweighs a stale field report from a nominally comparable source.</p>
+    </div>
+  </div>
+
+  <h3>6.2 Scoring</h3>
+  <div class="formula"><span class="k">criticality</span> = 0.25&middot;population_impact  <span class="c">// min(1, population / 10 000)</span>
+            + 0.25&middot;service_criticality <span class="c">// static per entity type</span>
+            + 0.20&middot;time_sensitivity    <span class="c">// static per entity type</span>
+            + 0.15&middot;isolation_risk      <span class="c">// from accessibility evidence</span>
+            + 0.15&middot;damage_severity     <span class="c">// severity &times; confidence, max over evidence</span>
+
+<span class="k">priority</span>    = 0.30&middot;criticality
+            + 0.25&middot;urgency            <span class="c">// max over evidence values and asset status</span>
+            + 0.20&middot;impact             <span class="c">// normalised affected population</span>
+            + 0.15&middot;accessibility      <span class="c">// max(0.1, 1 - route_risk) from CC1; 0 if unreachable</span>
+            + 0.10&middot;confidence         <span class="c">// mean evidence confidence &times; (1 - 0.15&middot;conflicts)</span></div>
+  <p>Service criticality runs from hospital 1.00 and command centre 0.95 down through hydropower 0.85, health post 0.80, shelter 0.75, school 0.60 and village 0.55 to river 0.10. Time sensitivity is a parallel table topped by hospital 1.00 and health post 0.90. Both weight sets sum to exactly 1.0, and a unit test asserts it.</p>
+
+  <h3>6.3 Routing cost</h3>
+  <div class="formula"><span class="c">// effective Dijkstra weight per directed edge</span>
+blocked            &rarr; &infin;              <span class="c">(edge removed from the subgraph)</span>
+unknown            &rarr; travel_time &times; 1.4
+high_risk          &rarr; travel_time &times; 1.6
+partially_blocked  &rarr; travel_time &times; 1.8
+open               &rarr; travel_time &times; (1 + risk)
+
+<span class="c">// bridge state overrides the road it carries</span>
+bridge blocked     &rarr; road blocked, risk = 1.0
+road.confidence    &rarr; min(road.confidence, bridge.confidence)
+vehicle admitted   &rarr; capacity_order[bridge] &ge; capacity_order[vehicle]
+                      <span class="c">light 1 &lt; medium 2 &lt; heavy 3</span></div>
+
+  <h3>6.4 Assignment</h3>
+  <div class="formula"><span class="k">eligible</span>(r, t)  = r.status == AVAILABLE and t.type &isin; capability[r.type]
+<span class="k">feasible</span>(r, t)  = route(r.location &rarr; t.location, vehicle[r.type]).feasible
+<span class="k">score</span>(r, t)     = t.priority &times; (0.4 + 0.6 &times; max(0, 1 - travel/120))
+
+<span class="c">greedy: take (r,t) in descending score, strict 1:1, skip taken</span>
+<span class="c">improve: swap i,j while both remain eligible and</span>
+         swapped_weighted_travel &lt; current &times; 0.95   <span class="c">// up to 10 passes</span>
+
+<span class="k">baseline</span>        = tasks in priority order &rarr; nearest feasible resource, no refinement</div>
+
+  <table class="tight">
+    <thead><tr><th style="width:26%">Resource type</th><th style="width:40%">Permitted tasks</th><th>Routing class</th></tr></thead>
+    <tbody>
+      <tr><td>Rescue team</td><td>Rescue, evacuation, verification</td><td>Medium</td></tr>
+      <tr><td>Ambulance</td><td>Medical response</td><td>Heavy</td></tr>
+      <tr><td>Medical unit</td><td>Medical response, evacuation</td><td>Medium</td></tr>
+      <tr><td>Engineering team</td><td>Engineering, verification</td><td>Heavy</td></tr>
+      <tr><td>Supply vehicle</td><td>Supply delivery</td><td>Heavy</td></tr>
+    </tbody>
+  </table>
+  <p class="footnote">The routing class matters operationally: ambulances and heavy vehicles are refused medium-capacity bridges, so the same destination can be reachable for a rescue team and unreachable for an ambulance. That asymmetry is enforced in the graph, not approximated in the optimiser.</p>
+</div>
+
+<!-- ============ 7. SCENARIO & BENCHMARK ============ -->
+<div class="section">
+  <h2><span class="num">7</span>Scenario &amp; Benchmark Harness</h2>
+
+  <h3>7.1 The Bhote Valley simulation &mdash; implemented and seeded</h3>
+  <div class="metrics">
+    <div class="metric"><div class="v">15</div><div class="l">Assets</div></div>
+    <div class="metric"><div class="v">14</div><div class="l">Road<br>segments</div></div>
+    <div class="metric"><div class="v">2</div><div class="l">Bridges</div></div>
+    <div class="metric"><div class="v">8</div><div class="l">Response<br>resources</div></div>
+    <div class="metric"><div class="v">13</div><div class="l">Scripted<br>events</div></div>
+    <div class="metric"><div class="v">180</div><div class="l">Minutes<br>simulated</div></div>
+  </div>
+  <p>The network forms two chains out of the command centre: one via the district hospital, a health post, a school, a shelter and a village to the hydropower station, and one via a supply base through four villages, a school and a health post to a second supply base. Bridge B1 sits on the hospital-to-health-post road at heavy capacity; bridge B2 sits on a village-to-village road at medium capacity. Because the topology is chain-like, a single blockage genuinely isolates everything downstream &mdash; which is the point, and is what makes the accessibility term in priority scoring do visible work.</p>
+  <p>Total population across the 15 assets is 9,930, of which the district hospital accounts for 3,500. Thirteen of the 15 assets receive priority scores; the two supply bases are excluded as infrastructure. All eight resources start available at one of four bases.</p>
+
+  <h3>7.2 Event sequence</h3>
+  <p>Thirteen events at exact 15-minute intervals from T+0 to T+180, drawn from four source classes with deliberately varied reliability.</p>
+  <table class="tight">
+    <thead><tr><th class="ctr" style="width:8%">T+</th><th style="width:26%">Event</th><th style="width:9%">Entity</th><th style="width:13%">Source</th><th style="width:10%">Conf.</th><th>Operational consequence</th></tr></thead>
+    <tbody>
+      <tr><td class="ctr mono">0</td><td>Normal state</td><td class="mono">&mdash;</td><td>Simulation</td><td class="mono">1.00</td><td>Establishes the pre-disaster baseline plan</td></tr>
+      <tr><td class="ctr mono">15</td><td>Flood detection</td><td class="mono">V3</td><td>Satellite</td><td class="mono">0.85</td><td>First evidence of degradation; village priority rises</td></tr>
+      <tr><td class="ctr mono">30</td><td>Bridge damage report</td><td class="mono">B1</td><td>Field report</td><td class="mono">0.82</td><td>B1 partially blocked; routing cost on its road inflates</td></tr>
+      <tr><td class="ctr mono">45</td><td><strong>Conflicting bridge report</strong></td><td class="mono">B1</td><td>Field report</td><td class="mono">0.50</td><td><strong>Contradicts T+30. Conflict flagged, confidence drops, verification recommended</strong></td></tr>
+      <tr><td class="ctr mono">60</td><td>Road blockage</td><td class="mono">R7</td><td>Field report</td><td class="mono">0.90</td><td>Edge removed from the graph; the entire second chain must reroute</td></tr>
+      <tr><td class="ctr mono">75</td><td>Hospital demand surge</td><td class="mono">HP1</td><td>Hospital</td><td class="mono">0.95</td><td>Health post overloaded; urgency spikes on the highest-reliability source</td></tr>
+      <tr><td class="ctr mono">90</td><td>Resource unavailable</td><td class="mono">RT2</td><td>Field report</td><td class="mono">1.00</td><td>A rescue team is withdrawn mid-plan; optimiser must reassign</td></tr>
+      <tr><td class="ctr mono">105</td><td>Bridge confirmed blocked</td><td class="mono">B2</td><td>Satellite</td><td class="mono">0.88</td><td>Hard blockage; road forced blocked at risk 1.0</td></tr>
+      <tr><td class="ctr mono">120</td><td>Village isolation confirmed</td><td class="mono">V3</td><td>Field report</td><td class="mono">0.90</td><td>Isolation risk fires; accessibility term collapses</td></tr>
+      <tr><td class="ctr mono">135</td><td>Satellite observation</td><td class="mono">V4</td><td>Satellite</td><td class="mono">0.80</td><td>Second village flooded; competing demand for scarce units</td></tr>
+      <tr><td class="ctr mono">150</td><td>Alternate route opened</td><td class="mono">R5</td><td>Field report</td><td class="mono">0.70</td><td><strong>Recovery.</strong> Edge returns to the graph and the plan improves</td></tr>
+      <tr><td class="ctr mono">165</td><td>School evacuation</td><td class="mono">S1</td><td>Field report</td><td class="mono">0.92</td><td>Evacuation task generated, requiring a compatible resource type</td></tr>
+      <tr><td class="ctr mono">180</td><td>Satellite observation</td><td class="mono">V5</td><td>Satellite</td><td class="mono">0.75</td><td>Conditions clear at the last village; priority recedes</td></tr>
+    </tbody>
+  </table>
+  <p>The sequence is designed so that each mechanism in the system is exercised at least once and is visible in the dashboard as a state change: fusion at T+15, conflict detection at T+45, graph mutation at T+60 and T+105, reallocation at T+90, isolation at T+120, and recovery at T+150.</p>
+
+  <h3>7.3 Benchmark harness &mdash; implemented, 18 metrics</h3>
+  <p>The harness builds both plans on the same world state and compares them. Nothing is hardcoded; every figure is computed from the state reached by however many events have been processed.</p>
+  <table class="tight">
+    <thead><tr><th style="width:32%">Metric group</th><th>Measures</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Coverage</strong></td><td>Tasks assigned, total tasks, coverage rate, critical sites covered, critical coverage rate, unmet critical demand</td></tr>
+      <tr><td><strong>Efficiency</strong></td><td>Total travel time, priority-weighted response time, resource utilisation</td></tr>
+      <tr><td><strong>Safety</strong></td><td>Blocked-route violations &mdash; allocations whose route is infeasible</td></tr>
+      <tr><td><strong>Evidence quality</strong></td><td>Conflict detection rate, total observations, total evidence items, mean decision confidence</td></tr>
+      <tr><td><strong>Responsiveness</strong></td><td>Replanning events completed</td></tr>
+      <tr><td><strong>Improvement</strong></td><td>Travel-time reduction percentage, coverage delta, conflicts detected, blocked-route violations avoided</td></tr>
+    </tbody>
+  </table>
+  <div class="box ok">
+    <div class="t">Integrity of the comparison</div>
+    <p>We checked specifically for synthetic inflation of our own result, because that is the usual failure mode of self-reported benchmarks. The baseline is a real nearest-resource algorithm run on identical state, and no multiplier is applied to either side in the returned output. &ldquo;Critical&rdquo; is defined structurally as hospital, health post and shelter entities &mdash; four sites in this scenario &mdash; and not chosen to flatter the result.</p>
+    <p style="margin-top:2mm">One honest asymmetry to disclose when presenting: mean decision confidence falls back to 0.5 for the baseline, because the baseline algorithm does not construct decision explanations at all. That metric should be read as a property of the AI plan only, not as a comparison.</p>
+  </div>
+  <p>Benchmark figures are deliberately absent from this document. They depend on how far the simulation has advanced, and quoting a number here would invite exactly the kind of unverifiable claim the project is designed to avoid. Run <code>make benchmark</code> and report what it returns.</p>
+</div>
+
+<!-- ============ 8. VERIFICATION ============ -->
+<div class="section">
+  <h2><span class="num">8</span>Verification Status</h2>
+
+  <div class="metrics">
+    <div class="metric"><div class="v">64</div><div class="l">Total<br>tests</div></div>
+    <div class="metric"><div class="v">43</div><div class="l">Engine unit<br>tests</div></div>
+    <div class="metric"><div class="v">21</div><div class="l">API integration<br>tests</div></div>
+    <div class="metric"><div class="v">5 / 5</div><div class="l">Engines<br>covered</div></div>
+  </div>
+
+  <h3>8.1 What the unit tests prove</h3>
+  <p>Forty-three tests exercise the engines as pure functions, with local factories rather than database fixtures. They cover the exact freshness formula including the slow-decay population case, the source-reliability constants and the weight product, fusion of single / empty / unanimous / conflicting / stale / equal-weight inputs, value canonicalisation, criticality ordering and bounds, priority bounds and explanation generation, routing across six cases including blocked-road exclusion, blocked-bridge propagation, alternate-route discovery and live update on bridge change, and seven optimiser cases including capability enforcement, blocked-route avoidance, no double assignment, exclusion of unavailable resources, and comparison against the baseline. One test asserts that both weight sets sum to 1.0, which catches the most likely form of silent configuration error.</p>
+
+  <h3>8.2 What the integration tests prove</h3>
+  <p>Twenty-one async tests drive the real application through an ASGI transport against a freshly seeded database. They cover every read endpoint, assert that priorities are returned in descending order, process a scripted event, inject a road blockage, inject a two-report bridge contradiction and assert the entity is flagged <code>conflicting</code>, run the optimiser, ask an operator question, reset the simulation, and finally run an end-to-end pass of reset, seven events, situation, route, optimise and Q&amp;A. The benchmark endpoint is exercised with a skip guard for the no-task state.</p>
+
+  <div class="box risk">
+    <div class="t">Verification gaps &mdash; stated plainly</div>
+    <p><strong>The suite was not executed during preparation of this document.</strong> The environment available had no installable Python package manager, so the backend dependencies could not be provisioned and the 64-test claim is a count of defined test functions, verified by inspection, not a passing run. Anyone presenting this project should run <code>make test</code> and confirm.</p>
+    <p style="margin-top:2mm">Three known fragilities in the test setup, found by reading it: the integration tests share module-global world state and are therefore order-dependent; they assume the working directory is <code>src/backend</code> for the SQLite file; and they define a custom <code>event_loop</code> fixture, which is deprecated in pytest-asyncio 0.23 and removed in 1.x. Since <code>requirements.txt</code> pins only a lower bound, a fresh install today may pick up a version that breaks the integration suite. This is the single highest-value fix before a live demo.</p>
+    <p style="margin-top:2mm">Also unverified: CI runs no tests at all. The GitHub workflow validates file presence, YAML parsing, required submission fields and placeholder replacement &mdash; six structural checks with no build, lint, type-check or test step. Green CI on this repository does not indicate working code.</p>
+  </div>
+</div>
+
+<!-- ============ 9. GAPS ============ -->
+<div class="section">
+  <h2><span class="num">9</span>Gaps, Drift &amp; Limitations</h2>
+  <p class="lead">This section exists because a proposal that overstates its own completeness is worth less than one that does not. Everything here was found by comparing the repository's documentation against its code.</p>
+
+  <h3>9.1 Documented but not implemented</h3>
+  <table class="tight">
+    <thead><tr><th style="width:30%">Claim</th><th style="width:14%">Reality</th><th>Impact</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>POST /actions/allocate</code> for operator confirm / reject</td>
+        <td><span class="pill p-gap">ABSENT</span></td>
+        <td><strong>The most significant gap.</strong> The architecture describes confirm / reject cards feeding accepted allocations back into state, and the dashboard is built around advisory plans, but there is no write endpoint. The human-in-the-loop loop is open: recommendations can be read and reasoned about, not actioned in-system.</td>
+      </tr>
+      <tr>
+        <td>SSE stream pushing deltas to the dashboard</td>
+        <td><span class="pill p-gap">ABSENT</span></td>
+        <td>No SSE or WebSocket route exists. The dashboard polls four endpoints every 5&nbsp;s, which is adequate at this scale but means up to 5&nbsp;s of staleness and redundant transfer.</td>
+      </tr>
+      <tr>
+        <td>Durable audit log</td>
+        <td><span class="pill p-part">PARTIAL</span></td>
+        <td>The <code>audit_log</code> table is created and cleared on reset but never written to. <code>GET /audit</code> serves the in-memory log only, so the post-incident review trail does not survive a restart.</td>
+      </tr>
+      <tr>
+        <td>Top-3 ranked routes with per-segment confidence</td>
+        <td><span class="pill p-part">PARTIAL</span></td>
+        <td>Routing returns a single optimal path plus the list of roads excluded. Per-segment confidence is held on the edges but not returned per hop, and there is no k-shortest-paths implementation.</td>
+      </tr>
+      <tr>
+        <td>Tick loop at a configurable interval</td>
+        <td><span class="pill p-part">DIFFERS</span></td>
+        <td>The engine is event-driven and jumps the clock to each event's offset. Behaviourally equivalent for the scripted scenario; the document is simply describing a design that was superseded.</td>
+      </tr>
+      <tr>
+        <td>Task duration estimates used in scheduling</td>
+        <td><span class="pill p-part">UNUSED</span></td>
+        <td>Durations are computed and stored per task but never consumed. There is no scheduling, no time windows and no sequencing of multiple tasks per resource &mdash; assignment is strictly one-to-one.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>9.2 Documentation drift</h3>
+  <p><code>demo/README.md</code> is the least reliable document in the repository and should be rewritten before submission. It refers to locations that do not exist in the scenario (&ldquo;Balephi Junction&rdquo;, &ldquo;Sindhupalchok North&rdquo;), states seven villages where there are five, describes a six-hour timeline where the scenario ends at T+180, walks through a ranked route list and confidence bars that the UI does not have, scripts Bob queries for resource assignment and audit-log retrieval that no MCP tool supports, and describes the baseline as random allocation when it is nearest-resource. <code>demo/demo-video-link.txt</code> additionally repeats incorrect counts of 14 assets and 12 roads.</p>
+  <table class="tight">
+    <thead><tr><th style="width:38%">Correct figure</th><th class="ctr" style="width:14%">Verified</th><th>Incorrectly stated as</th></tr></thead>
+    <tbody>
+      <tr><td>Assets</td><td class="ctr mono">15</td><td>14 &mdash; in <code>README.md</code> and <code>demo/demo-video-link.txt</code></td></tr>
+      <tr><td>Road segments</td><td class="ctr mono">14</td><td>12 &mdash; in <code>README.md</code> and <code>demo/demo-video-link.txt</code></td></tr>
+      <tr><td>Villages</td><td class="ctr mono">5</td><td>7 &mdash; in <code>demo/README.md</code></td></tr>
+      <tr><td>Simulated duration</td><td class="ctr mono">180&nbsp;min</td><td>6 hours &mdash; in <code>demo/README.md</code></td></tr>
+      <tr><td>Baseline algorithm</td><td class="ctr">Nearest-resource</td><td>Random allocation &mdash; in <code>demo/README.md</code></td></tr>
+      <tr><td>REST operations</td><td class="ctr mono">24</td><td>22 listed in <code>docs/architecture.md</code>; all 22 exist, two are simply undocumented</td></tr>
+    </tbody>
+  </table>
+  <p class="footnote">Counts verified as accurate: 14 MCP tools, 64 defined tests, 2 bridges, 8 resources, 13 events. These can be quoted with confidence.</p>
+
+  <h3>9.3 Engineering and security notes</h3>
+  <div class="box risk">
+    <div class="t">Security posture &mdash; disclose before any deployment</div>
+    <p><strong>There is no authentication or authorisation on any endpoint.</strong> CORS is configured with a wildcard origin while also allowing credentials, and the state-mutating operations &mdash; <code>POST /simulate/event</code>, <code>/simulate/reset</code>, <code>/optimize</code> &mdash; are open to any caller that can reach the port. This is acceptable for a local single-operator demo and is not acceptable for the hosted deployment the demo materials anticipate. If the project is deployed publicly, this needs an auth layer and an origin allowlist first.</p>
+  </div>
+  <ul>
+    <li><strong>Unpinned dependencies.</strong> All eleven backend packages use open <code>&gt;=</code> ranges, so two installs a month apart can resolve to different versions. The pytest-asyncio case in Section&nbsp;8.2 is a concrete instance of this already causing latent breakage.</li>
+    <li><strong>Hardcoded environment paths.</strong> The <code>Makefile</code> hardcodes <code>/opt/conda/bin/python3</code> and uses Unix-only commands; <code>mcp_config.json</code> hardcodes devcontainer absolute paths. Neither resolves on a Windows checkout, so both need editing before a local run outside the original container.</li>
+    <li><strong>Undeclared MCP dependency.</strong> <code>src/mcp/</code> has no requirements file but needs <code>httpx</code>, which it inherits from the backend environment. Running the MCP server in isolation will fail.</li>
+    <li><strong>watsonx SDK not declared.</strong> <code>ibm-watsonx-ai</code> is absent from <code>requirements.txt</code>, so the watsonx path requires a manual install. The deterministic fallback masks this, which is convenient but means the watsonx branch is unlikely to have been exercised.</li>
+    <li><strong>Optimiser decision records go stale after a swap.</strong> Local improvement rewrites the allocations but returns the decision list untouched, so a persisted <code>DecisionDB</code> row can describe the pre-swap pairing. Since explainability is the project's central claim, this is a correctness bug in the part that matters most.</li>
+    <li><strong>Frontend loose ends.</strong> <code>recharts</code> is installed but never imported, so the metrics panel is numeric tiles rather than charts. Timeline data is fetched every 5&nbsp;s and never rendered. <code>VITE_API_BASE_URL</code> is read by the API client but is absent from <code>.env.example</code>, so a production build served outside the dev proxy has no working API base.</li>
+    <li><strong>Benchmark writes to the working directory.</strong> <code>benchmark_results.json</code> is written to the process CWD as a side effect of running the benchmark endpoint.</li>
+  </ul>
+
+  <h3>9.4 Scope limitations, by design</h3>
+  <ul>
+    <li><strong>Closed simulation.</strong> No live ingestion of sensor, satellite, telephony or weather feeds. Observations arrive only from the scenario script or manual injection.</li>
+    <li><strong>Synthetic data throughout.</strong> Every entity, coordinate, population and event is invented. The benchmark measures algorithmic behaviour on a constructed scenario, not real-world outcome improvement.</li>
+    <li><strong>Greedy rather than exact optimisation.</strong> Assignment is heuristic, not a solved integer program. At eight resources and a handful of tasks the gap is negligible, but the system cannot claim optimality.</li>
+    <li><strong>Accessibility measured from a single origin.</strong> The accessibility term in priority scoring routes from the command centre only, so it reflects reachability from headquarters rather than from whichever resource would actually respond.</li>
+    <li><strong>Confidence is not calibrated.</strong> As set out in Section&nbsp;5.2, fused confidence is a support score. It should not be presented as a probability.</li>
+    <li><strong>Map tiles require internet.</strong> The dark CARTO basemap will not load offline; the rest of the dashboard degrades gracefully.</li>
+    <li><strong>Demo artefacts incomplete.</strong> Three screenshots exist. The demo video link and live demo URL are both placeholders, and CI's placeholder check does not catch either.</li>
+  </ul>
+</div>
+
+<!-- ============ 10. ROADMAP ============ -->
+<div class="section">
+  <h2><span class="num">10</span>Roadmap</h2>
+  <p class="lead">Ordered by value per unit of effort. The first group closes the loop the architecture already promises; the second makes the system defensible outside a demo; the third extends the research claim.</p>
+
+  <h3>10.1 Close the human-in-the-loop loop</h3>
+  <table class="tight">
+    <thead><tr><th style="width:30%">Work item</th><th style="width:13%">Effort</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Allocation write-back endpoint</strong><br><span class="footnote">POST /actions/allocate + reject</span></td><td>Small</td><td>Turns the dashboard's advisory cards into real decisions, makes resource state advance through deployment, and gives the replanning cycle something to react to. Everything needed already exists; only the endpoint and the state transition are missing.</td></tr>
+      <tr><td><strong>Persist the audit log</strong></td><td>Small</td><td>The table and the in-memory records both exist; they simply are not connected. Post-incident review is a stated goal and currently does not survive a restart.</td></tr>
+      <tr><td><strong>Fix stale decision records after swap</strong></td><td>Small</td><td>Explainability is the project's central claim, and a persisted explanation that describes a superseded pairing directly undermines it.</td></tr>
+      <tr><td><strong>Rebuild <code>demo/README.md</code> from the code</strong></td><td>Small</td><td>A judge who follows the current demo script will look for entities and features that do not exist. This is the highest-risk document in the repository.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>10.2 Make it safe and reproducible</h3>
+  <table class="tight">
+    <thead><tr><th style="width:30%">Work item</th><th style="width:13%">Effort</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Pin dependencies; remove the deprecated <code>event_loop</code> fixture</strong></td><td>Small</td><td>Guarantees the 64-test suite runs the same way on a fresh machine. Currently a clean install may resolve a pytest-asyncio version that breaks the integration tests.</td></tr>
+      <tr><td><strong>Run tests, lint and build in CI</strong></td><td>Small</td><td>CI today validates file presence only. Adding pytest, oxlint and <code>tsc -b</code> converts a green badge from decoration into evidence.</td></tr>
+      <tr><td><strong>Authentication and an origin allowlist</strong></td><td>Medium</td><td>Mandatory prerequisite for the hosted deployment the demo materials assume. Unauthenticated state mutation behind a wildcard CORS policy cannot be exposed publicly.</td></tr>
+      <tr><td><strong>Portable Makefile and MCP config</strong></td><td>Small</td><td>Removes the hardcoded conda and devcontainer paths that block a local run on a fresh checkout.</td></tr>
+      <tr><td><strong>Isolate integration test state</strong></td><td>Medium</td><td>Removes order dependence on shared global world state, so failures point at the defect rather than at test sequencing.</td></tr>
+      <tr><td><strong>Record the demo video; deploy or remove the URL placeholder</strong></td><td>Small</td><td>Both artefacts are currently placeholders that CI does not catch.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>10.3 Extend the analytical claim</h3>
+  <table class="tight">
+    <thead><tr><th style="width:30%">Work item</th><th style="width:13%">Effort</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td><strong>k-shortest routes with per-segment confidence</strong></td><td>Medium</td><td>Delivers the confidence-versus-time tradeoff the solution overview describes and the coordinator actually wants: not one route, but the honest options.</td></tr>
+      <tr><td><strong>Calibrate fused confidence</strong></td><td>Medium</td><td>Make corroboration raise confidence, so the value can be defended as a probability rather than a support score. This is the change that would most strengthen the core research claim.</td></tr>
+      <tr><td><strong>Per-resource accessibility</strong></td><td>Medium</td><td>Score reachability from the responding unit rather than from the command centre, which is what the dispatch decision actually depends on.</td></tr>
+      <tr><td><strong>Scheduling with task durations</strong></td><td>Large</td><td>Durations are already computed. Consuming them permits multiple sequential tasks per resource and time-window feasibility, lifting the model from one-shot assignment to a response schedule.</td></tr>
+      <tr><td><strong>Exact assignment solver</strong></td><td>Medium</td><td>Min-cost-flow or ILP would let the system claim optimality and would quantify how much the greedy heuristic actually leaves on the table.</td></tr>
+      <tr><td><strong>Live data adapters</strong></td><td>Large</td><td>The observation model is already source-agnostic with per-source reliability, so real feeds are an adapter problem rather than a redesign. This is the path from simulation to pilot.</td></tr>
+      <tr><td><strong>Server-sent events</strong></td><td>Small</td><td>Replaces 5-second polling with push, removing staleness and redundant transfer on four endpoints.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box">
+    <div class="t">Recommended next four actions</div>
+    <p>If only a day of work is available before submission: pin the dependencies and fix the <code>event_loop</code> fixture so the suite provably runs; add the allocation write-back endpoint so the human-in-the-loop story is demonstrable rather than described; rewrite <code>demo/README.md</code> against the actual scenario; and correct the asset and road counts in <code>README.md</code>. Together these convert three of the four weakest points in the submission into strengths, and none is large.</p>
+  </div>
+</div>
+
+<!-- ============ 11. APPENDIX ============ -->
+<div class="section">
+  <h2><span class="num">11</span>Appendix</h2>
+
+  <h3>11.1 Repository layout</h3>
+  <div class="formula">bob-ai-hackathon-shutdown/
+├── src/
+│   ├── backend/
+│   │   ├── app/
+│   │   │   ├── main.py            <span class="c">FastAPI — 24 operations</span>
+│   │   │   ├── config.py          <span class="c">every tunable parameter</span>
+│   │   │   ├── models/domain.py   <span class="c">10 enums, 16 Pydantic v2 models</span>
+│   │   │   ├── engines/
+│   │   │   │   ├── evidence_fusion.py     <span class="c">weighting, decay, conflicts</span>
+│   │   │   │   ├── priority_engine.py     <span class="c">criticality &amp; priority</span>
+│   │   │   │   ├── graph_engine.py        <span class="c">NetworkX accessibility</span>
+│   │   │   │   ├── resource_optimizer.py  <span class="c">greedy + swap, baseline</span>
+│   │   │   │   ├── simulation.py          <span class="c">world state, events, tasks</span>
+│   │   │   │   └── benchmark.py           <span class="c">18 metrics, AI vs baseline</span>
+│   │   │   ├── db/                <span class="c">async SQLAlchemy, 8 tables, seeding</span>
+│   │   │   └── utils/ai_provider.py       <span class="c">watsonx + deterministic fallback</span>
+│   │   ├── tests/                 <span class="c">43 unit + 21 integration</span>
+│   │   ├── seed_runner.py  benchmark_runner.py  requirements.txt  pytest.ini
+│   ├── frontend/src/              <span class="c">App.tsx (11 components), api.ts, CSS</span>
+│   ├── mcp/                       <span class="c">server.py (14 tools), mcp_config.json</span>
+│   ├── data/scenario_nepal_inspired.json  <span class="c">15 assets, 14 roads, 13 events</span>
+│   └── .env.example
+├── docs/          <span class="c">problem statement, solution overview, architecture, setup</span>
+├── demo/          <span class="c">guide, 3 screenshots, video + URL placeholders</span>
+├── presentation/  <span class="c">deck (pptx + pdf)</span>
+├── Makefile       <span class="c">11 targets</span>
+└── submission.yaml</div>
+
+  <h3>11.2 Running the system</h3>
+  <table class="tight">
+    <thead><tr><th style="width:30%">Command</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">make install</td><td>Verifies the scenario file exists, installs backend requirements, installs frontend packages</td></tr>
+      <tr><td class="mono">make seed</td><td>Deletes the SQLite database and reseeds from the scenario file</td></tr>
+      <tr><td class="mono">make dev-backend</td><td>uvicorn with reload on port 8000; interactive API docs at <code>/docs</code></td></tr>
+      <tr><td class="mono">make dev-frontend</td><td>Vite dev server on port 5173, proxying <code>/api</code> to the backend</td></tr>
+      <tr><td class="mono">make test</td><td>Seeds, then runs all 64 tests</td></tr>
+      <tr><td class="mono">make benchmark</td><td>Seeds, processes up to 10 events, prints the benchmark JSON</td></tr>
+      <tr><td class="mono">make build-frontend</td><td>Type-checks and builds; the backend then serves the bundle from <code>/</code></td></tr>
+      <tr><td class="mono">make clean</td><td>Removes the database, benchmark output, frontend build and Python caches</td></tr>
+    </tbody>
+  </table>
+  <p>The MCP server is launched by the Bob client using <code>src/mcp/mcp_config.json</code>, with <code>BACKEND_URL</code> pointing at the running backend. Both the interpreter path and the script path in that file must be corrected for the local machine, as noted in Section&nbsp;9.3. No credentials are required for any part of the system; watsonx is optional and the deterministic provider is used automatically in its absence.</p>
+
+  <h3>11.3 Dependencies</h3>
+  <div class="two">
+    <div>
+      <h4>Backend &mdash; 11 packages</h4>
+      <p style="font-size:8.4pt">fastapi, uvicorn[standard], pydantic, pydantic-settings, networkx, httpx, sqlalchemy, aiosqlite, python-dotenv, pytest, pytest-asyncio</p>
+      <p class="footnote">All specified with open lower bounds. <code>ibm-watsonx-ai</code> is not declared and must be installed manually to exercise the watsonx path. There is no MCP SDK; the server implements JSON-RPC 2.0 directly.</p>
+    </div>
+    <div>
+      <h4>Frontend</h4>
+      <p style="font-size:8.4pt">react 19, react-dom 19, leaflet, react-leaflet 5, recharts <em>(unused)</em>; dev: vite, typescript, @vitejs/plugin-react, oxlint, type definitions</p>
+      <p class="footnote">No router, no state library, no CSS framework and no test framework. Styling is hand-written CSS with custom properties.</p>
+    </div>
+  </div>
+
+  <h3>11.4 Summary judgement</h3>
+  <div class="box ok">
+    <div class="t">Where the project stands</div>
+    <p>The analytical core is the strongest part of this submission and it is finished. Five engines implement a coherent, defensible thesis &mdash; that uncertainty belongs in the decision, not in a footnote &mdash; and they do it deterministically, with every weight traceable and every number reproducible. The MCP integration is genuinely load-bearing rather than decorative, and the dashboard makes the replanning visible rather than merely claimed.</p>
+    <p style="margin-top:2mm">The weaknesses are at the edges, not the centre: an unclosed human-in-the-loop write path, an audit trail that does not persist, a demo guide that describes a different system, and unpinned dependencies that put the test suite's reproducibility at risk. All four are small and well understood. None requires revisiting the design.</p>
+  </div>
+
+  <p class="footnote" style="margin-top:6mm">Prepared 18 September 2026 by reading the source tree at <code>bob-ai-hackathon-shutdown</code>. Counts and constants verified directly in code; the test suite was counted by inspection but not executed. No source files were modified. All scenario data referenced in this document is synthetic.</p>
+</div>
+
+</body>
+</html>

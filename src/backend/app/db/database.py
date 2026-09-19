@@ -136,6 +136,13 @@ class AuditDB(Base):
 
 
 class DecisionDB(Base):
+    """A system recommendation.
+
+    Rows are INSERT-ONLY: a replan never rewrites an existing recommendation,
+    it inserts a new one. The only column ever updated after insert is the pair
+    of operator_* fields below, which record a human's response and are
+    explicitly not part of the recommendation itself.
+    """
     __tablename__ = "decisions"
     id = Column(String, primary_key=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
@@ -150,6 +157,26 @@ class DecisionDB(Base):
     alternatives_json = Column(Text, default="[]")
     human_verification_required = Column(Boolean, default=True)
     simulation_time_min = Column(Integer, default=0)
+
+    # ── B7: exact join key to AllocationResult.task_id ───────────────────────
+    # DecisionExplanation historically carried only target_entity_id and
+    # resource_id, so joining a decision to the allocation it describes had to
+    # be inferred. Task ids are deterministic and stable across replans
+    # (TASK-{asset_id}-{task_type}), so this makes the join exact.
+    task_id = Column(String, nullable=True, index=True)
+
+    # ── Correction 4 / B4: decision currency ─────────────────────────────────
+    # Monotonic counter incremented once per optimizer run that persists
+    # decisions. A row is CURRENT iff plan_generation == the world state's
+    # current generation; everything lower is superseded history. Chosen over a
+    # `superseded_at` timestamp because it requires no write to any existing
+    # row, preserving insert-only semantics, and because timestamps collide
+    # within a single plan.
+    plan_generation = Column(Integer, default=0, index=True)
+
+    # ── B3: operator response (NOT part of the recommendation) ───────────────
+    operator_status = Column(String, nullable=True, default=None)
+    operator_notes = Column(Text, nullable=True, default=None)
 
 
 class SimEventDB(Base):
