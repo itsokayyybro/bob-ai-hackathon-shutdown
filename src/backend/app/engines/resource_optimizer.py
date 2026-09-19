@@ -225,6 +225,39 @@ def optimize_allocation(
     )
 
 
+def _make_decision(
+    resource: Resource,
+    task: Task,
+    route: Optional[Route],
+    tt: float,
+    simulation_time_min: int,
+    note: str = "",
+) -> DecisionExplanation:
+    """Build a DecisionExplanation for a resource→task assignment."""
+    reasons = [
+        f"Task priority: {task.priority:.2f}",
+        f"Resource capability match: {task.task_type.value}",
+        f"Estimated travel time: {tt:.0f} minutes",
+    ]
+    if route and route.feasible:
+        reasons.append(f"Route via {len(route.path_nodes)} nodes, {route.total_distance_km:.1f}km")
+    else:
+        reasons.append("⚠ No direct route — resource may need alternate path")
+    if note:
+        reasons.append(note)
+    return DecisionExplanation(
+        recommended_action=f"Assign {resource.name} to task: {task.name}",
+        target_entity_id=task.target_entity_id,
+        resource_id=resource.id,
+        priority=task.priority,
+        confidence=0.85 if route and route.feasible else 0.50,
+        reasons=reasons,
+        constraints=[f"Resource type: {resource.type}", f"Task type: {task.task_type.value}"],
+        alternatives_considered=[],
+        simulation_time_min=simulation_time_min,
+    )
+
+
 def _local_improve(
     allocations: list[AllocationResult],
     decisions: list[DecisionExplanation],
@@ -236,6 +269,8 @@ def _local_improve(
 ) -> tuple[list[AllocationResult], list[DecisionExplanation]]:
     """
     Try pairwise swaps to improve total weighted travel time.
+    When a swap is accepted, rebuild both allocations AND their decisions so
+    persisted DecisionDB rows always describe the final (post-swap) assignment.
     One pass — O(n^2) but n is small for hackathon scale.
     """
     if len(allocations) < 2:
@@ -280,12 +315,14 @@ def _local_improve(
                 )
 
                 if swapped_total < current_total * 0.95:  # 5% improvement threshold
-                    # Apply swap
+                    # Apply swap to allocations
+                    tt_i = travel_times.get((r1_id, t2_id), 0.0)
+                    tt_j = travel_times.get((r2_id, t1_id), 0.0)
                     allocations[i] = AllocationResult(
                         task_id=t2_id,
                         resource_id=r1_id,
                         route=routes.get((r1_id, t2_id)),
-                        estimated_arrival_min=travel_times.get((r1_id, t2_id), 0.0),
+                        estimated_arrival_min=tt_i,
                         priority_score=a1.priority_score,
                         explanation=f"{r1.name} reassigned to {t2.name} after swap optimization",
                     )
@@ -293,9 +330,18 @@ def _local_improve(
                         task_id=t1_id,
                         resource_id=r2_id,
                         route=routes.get((r2_id, t1_id)),
-                        estimated_arrival_min=travel_times.get((r2_id, t1_id), 0.0),
+                        estimated_arrival_min=tt_j,
                         priority_score=a2.priority_score,
                         explanation=f"{r2.name} reassigned to {t1.name} after swap optimization",
+                    )
+                    # Rebuild decisions to match the NEW allocation pairing
+                    decisions[i] = _make_decision(
+                        r1, t2, routes.get((r1_id, t2_id)), tt_i,
+                        simulation_time_min, note="swap optimization applied",
+                    )
+                    decisions[j] = _make_decision(
+                        r2, t1, routes.get((r2_id, t1_id)), tt_j,
+                        simulation_time_min, note="swap optimization applied",
                     )
                     improved = True
                     logger.debug(f"Swap improved: {current_total:.1f} → {swapped_total:.1f}")

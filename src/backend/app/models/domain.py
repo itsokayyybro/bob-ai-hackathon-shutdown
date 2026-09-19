@@ -379,3 +379,24 @@ class BenchmarkMetrics(BaseModel):
     conflict_detection_rate: float
     decision_confidence_avg: float
     calculated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Plan Change (B5)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PlanChange(BaseModel):
+    """Describes a meaningful change between the previous and new response plan."""
+    task_id: str
+    entity_id: str                          # from the task's target_entity_id
+    previous_resource_id: Optional[str]
+    new_resource_id: Optional[str]
+    previous_eta_min: Optional[float]
+    new_eta_min: Optional[float]
+    previous_route_feasible: bool
+    new_route_feasible: bool
+    change_reason: str
+    triggering_event_id: Optional[str] = None
+    triggering_event_type: Optional[str] = None
+    affected_infrastructure_id: Optional[str] = None
+    review_required: bool = False

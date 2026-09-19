@@ -33,7 +33,7 @@ from app.models.domain import (
     Asset, Road, Bridge, Resource, Observation, EvidenceSummary,
     PriorityScore, ResponsePlan, AuditRecord, SimulationEvent,
     AssetStatus, RoadStatus, ResourceStatus, ObservationType,
-    SourceType, EntityType, Location, Task, TaskType
+    SourceType, EntityType, Location, Task, TaskType, PlanChange
 )
 
 logger = logging.getLogger(__name__)
@@ -63,6 +63,7 @@ class WorldState:
         self.audit_log: list[AuditRecord] = []
         self.unprocessed_events: list[SimulationEvent] = []
         self.all_events: list[SimulationEvent] = []
+        self.last_plan_changes: list = []   # list[PlanChange] — populated after each event (B5)
 
     def get_now(self) -> datetime:
         """Simulated wall-clock time."""
@@ -155,6 +156,133 @@ class WorldState:
         self.audit_log.append(record)
         logger.info(f"AUDIT [{self.current_time_min}min] {event_type}: {reason}")
         return record
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Plan-change diff (B5)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _diff_plans(
+    previous_plan: Optional[ResponsePlan],
+    new_plan: Optional[ResponsePlan],
+    tasks: dict[str, Task],
+    triggering_event_id: Optional[str] = None,
+    triggering_event_type: Optional[str] = None,
+    affected_infrastructure_id: Optional[str] = None,
+) -> list[PlanChange]:
+    """
+    Compare two ResponsePlans and return a list of meaningful PlanChange objects.
+
+    A change is meaningful when:
+    - the assigned resource changed, or
+    - route feasibility changed, or
+    - ETA changed by > 10% (reviewed; review_required only for the first two).
+
+    Only changes above a 10% ETA threshold are emitted so that minor timing
+    noise does not generate spurious review flags.
+    """
+    if new_plan is None:
+        return []
+
+    # Build previous allocation index: task_id → AllocationResult
+    prev_by_task: dict[str, object] = {}
+    if previous_plan:
+        for a in previous_plan.allocations:
+            prev_by_task[a.task_id] = a
+
+    changes: list[PlanChange] = []
+
+    for new_alloc in new_plan.allocations:
+        task = tasks.get(new_alloc.task_id)
+        entity_id = task.target_entity_id if task else new_alloc.task_id
+        prev_alloc = prev_by_task.get(new_alloc.task_id)
+
+        new_feasible = bool(new_alloc.route and new_alloc.route.feasible)
+        new_eta = new_alloc.estimated_arrival_min if new_alloc.estimated_arrival_min < float("inf") else None
+        new_resource = new_alloc.resource_id
+
+        if prev_alloc is None:
+            # Newly assigned task (no prior allocation)
+            prev_feasible = True   # no prior infeasibility known
+            prev_eta = None
+            prev_resource = None
+            reason = "New task assignment"
+            review = not new_feasible
+        else:
+            prev_feasible = bool(prev_alloc.route and prev_alloc.route.feasible)
+            prev_eta = prev_alloc.estimated_arrival_min if prev_alloc.estimated_arrival_min < float("inf") else None
+            prev_resource = prev_alloc.resource_id
+
+            resource_changed = (new_resource != prev_resource)
+            feasibility_changed = (new_feasible != prev_feasible)
+            eta_changed_significantly = (
+                prev_eta is not None and new_eta is not None
+                and abs(new_eta - prev_eta) / max(1.0, prev_eta) > 0.10
+            )
+
+            if not resource_changed and not feasibility_changed and not eta_changed_significantly:
+                continue  # No meaningful change
+
+            reason_parts = []
+            if resource_changed:
+                reason_parts.append(f"Resource changed {prev_resource} → {new_resource}")
+            if feasibility_changed:
+                if not new_feasible:
+                    reason_parts.append("Route became infeasible")
+                else:
+                    reason_parts.append("Route became feasible")
+            if eta_changed_significantly and not resource_changed and not feasibility_changed:
+                delta = round((new_eta or 0) - (prev_eta or 0), 1)
+                reason_parts.append(f"ETA changed by {delta:+.1f}min")
+            reason = "; ".join(reason_parts) if reason_parts else "Plan updated"
+            if triggering_event_type:
+                reason = f"{reason} (triggered by {triggering_event_type})"
+
+            review = resource_changed or (prev_feasible and not new_feasible)
+
+        changes.append(PlanChange(
+            task_id=new_alloc.task_id,
+            entity_id=entity_id,
+            previous_resource_id=prev_resource,
+            new_resource_id=new_resource,
+            previous_eta_min=prev_eta,
+            new_eta_min=new_eta,
+            previous_route_feasible=prev_feasible,
+            new_route_feasible=new_feasible,
+            change_reason=reason,
+            triggering_event_id=triggering_event_id,
+            triggering_event_type=triggering_event_type,
+            affected_infrastructure_id=affected_infrastructure_id,
+            review_required=review,
+        ))
+
+    # Also emit changes for tasks that LOST their allocation
+    new_task_ids = {a.task_id for a in new_plan.allocations}
+    if previous_plan:
+        for prev_alloc in previous_plan.allocations:
+            if prev_alloc.task_id not in new_task_ids:
+                task = tasks.get(prev_alloc.task_id)
+                entity_id = task.target_entity_id if task else prev_alloc.task_id
+                reason = "Task lost allocation"
+                if triggering_event_type:
+                    reason = f"{reason} (triggered by {triggering_event_type})"
+                changes.append(PlanChange(
+                    task_id=prev_alloc.task_id,
+                    entity_id=entity_id,
+                    previous_resource_id=prev_alloc.resource_id,
+                    new_resource_id=None,
+                    previous_eta_min=prev_alloc.estimated_arrival_min if prev_alloc.estimated_arrival_min < float("inf") else None,
+                    new_eta_min=None,
+                    previous_route_feasible=bool(prev_alloc.route and prev_alloc.route.feasible),
+                    new_route_feasible=False,
+                    change_reason=reason,
+                    triggering_event_id=triggering_event_id,
+                    triggering_event_type=triggering_event_type,
+                    affected_infrastructure_id=affected_infrastructure_id,
+                    review_required=True,
+                ))
+
+    return changes
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -463,6 +591,9 @@ class SimulationEngine:
 
         logger.info(f"PROCESSING EVENT [{evt.time_offset_min}min]: {evt.event_type} — {evt.description}")
 
+        # Snapshot previous plan BEFORE the pipeline runs (B5)
+        previous_plan = state.current_plan
+
         await self._process_event(evt, session)
 
         # Mark processed in DB
@@ -480,6 +611,18 @@ class SimulationEngine:
         self._recalculate_priorities()
         self._generate_tasks()
         await self._run_optimizer(session)
+
+        # Compute plan changes after the full pipeline (B5)
+        affected_infra = evt.entity_id if evt.event_type in (
+            "road_blockage", "bridge_damage_report", "conflicting_bridge_report",
+            "bridge_confirmed_blocked", "alternate_route_opened",
+        ) else None
+        state.last_plan_changes = _diff_plans(
+            previous_plan, state.current_plan, state.tasks,
+            triggering_event_id=evt.id,
+            triggering_event_type=evt.event_type,
+            affected_infrastructure_id=affected_infra,
+        )
 
         return evt
 
@@ -718,8 +861,20 @@ class SimulationEngine:
             resources, tasks, road_network, state.current_time_min
         )
 
-        # Persist decisions
+        # Persist decisions — insert-only (B4).
+        # For each new decision, mark all existing rows for the same target_entity_id
+        # as is_current=False (superseded), then insert the new row as is_current=True.
+        # Rows with operator_status set are never mutated (their recommended_action /
+        # reasons / confidence are untouched); only is_current is cleared.
+        from sqlalchemy import update as sa_update
         for decision in state.current_plan.decisions:
+            if decision.target_entity_id:
+                await session.execute(
+                    sa_update(DecisionDB)
+                    .where(DecisionDB.target_entity_id == decision.target_entity_id)
+                    .where(DecisionDB.is_current == True)   # noqa: E712
+                    .values(is_current=False)
+                )
             dec_db = DecisionDB(
                 id=decision.decision_id,
                 timestamp=decision.timestamp,
@@ -734,6 +889,9 @@ class SimulationEngine:
                 alternatives_json=json.dumps(decision.alternatives_considered),
                 human_verification_required=decision.human_verification_required,
                 simulation_time_min=state.current_time_min,
+                is_current=True,
+                operator_status=None,
+                operator_notes=None,
             )
             session.add(dec_db)
 
@@ -789,11 +947,27 @@ class SimulationEngine:
         # Process immediately
         self.state.all_events.append(evt)
         self.state.current_time_min = evt.time_offset_min
+
+        # Snapshot previous plan BEFORE the pipeline runs (B5)
+        previous_plan = self.state.current_plan
+
         await self._process_event(evt, session)
         self._fuse_all()
         self._recalculate_priorities()
         self._generate_tasks()
         await self._run_optimizer(session)
+
+        # Compute plan changes after the full pipeline (B5)
+        affected_infra = evt.entity_id if evt.event_type in (
+            "road_blockage", "bridge_damage_report", "conflicting_bridge_report",
+            "bridge_confirmed_blocked", "alternate_route_opened",
+        ) else None
+        self.state.last_plan_changes = _diff_plans(
+            previous_plan, self.state.current_plan, self.state.tasks,
+            triggering_event_id=evt.id,
+            triggering_event_type=evt.event_type,
+            affected_infrastructure_id=affected_infra,
+        )
 
         evt.processed = True
         return evt

@@ -80,8 +80,8 @@ def get_current_situation() -> str:
         lines.append("## TOP PRIORITY LOCATIONS")
         for p in priorities[:5]:
             lines.append(
-                f"  {p['rank']}. **{p['name']}** — priority={p['priority']:.3f}, "
-                f"urgency={p['urgency']:.0%}, accessibility={p['accessibility']:.0%}"
+                f"  {p['rank']}. **{p['entity_name']}** — priority={p['priority_score']:.3f}, "
+                f"urgency={p['urgency_score']:.0%}, accessibility={p['accessibility_factor']:.0%}"
             )
             lines.append(f"     {p['explanation']}")
 
@@ -332,7 +332,7 @@ def simulate_event(
 
     top = situation.get("top_priorities", [])
     if top:
-        lines.append(f"New #1 Priority: **{top[0]['name']}** (score={top[0]['priority']:.3f})")
+        lines.append(f"New #1 Priority: **{top[0]['entity_name']}** (score={top[0]['priority_score']:.3f})")
 
     blocked = situation.get("blocked_infrastructure", [])
     if blocked:
@@ -371,7 +371,7 @@ def simulate_next_event() -> str:
     top = situation.get("top_priorities", [])
     if top:
         for p in top[:3]:
-            lines.append(f"  #{p['rank']} {p['name']}: priority={p['priority']:.3f}")
+            lines.append(f"  #{p['rank']} {p['entity_name']}: priority={p['priority_score']:.3f}")
 
     blocked = situation.get("blocked_infrastructure", [])
     if blocked:

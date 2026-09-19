@@ -41,7 +41,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.db.database import get_db, init_db, DecisionDB, AuditDB, ObservationDB
-from app.db.seed import seed_database
+from app.db.seed import seed_database, _load_scenario
 from app.engines.simulation import sim_engine, world_state
 from app.engines.graph_engine import network as road_network
 from app.engines.benchmark import run_benchmark
@@ -49,6 +49,11 @@ from app.models.domain import (
     ObservationType, SourceType, RoadStatus, ResourceStatus
 )
 from app.utils.ai_provider import get_ai_provider
+
+# Load scenario metadata once at import time so it is available to all routes.
+_scenario_meta = _load_scenario()
+SCENARIO_NAME: str = _scenario_meta.get("scenario_name", "Bhote Valley Emergency Simulation")
+SCENARIO_DESCRIPTION: str = _scenario_meta.get("description", "")
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -104,6 +109,11 @@ class InjectEventRequest(BaseModel):
 class AIQuestionRequest(BaseModel):
     question: str
     context_entity_id: Optional[str] = None
+
+
+class ConfirmDecisionRequest(BaseModel):
+    status: str                          # accepted | rejected | modified
+    operator_notes: Optional[str] = None
 
 
 class RouteRequest(BaseModel):
@@ -172,7 +182,7 @@ async def get_situation():
 
     return {
         "sim_time_min": state.current_time_min,
-        "scenario": "Bhote Valley Emergency Simulation",
+        "scenario": SCENARIO_NAME,
         "top_priorities": [
             {
                 "entity_id": p.entity_id,
@@ -382,6 +392,34 @@ async def post_route(request: RouteRequest):
 # Simulation
 # ─────────────────────────────────────────────────────────────────────────────
 
+async def _collect_affected_decision_ids(
+    plan_changes,
+    session: AsyncSession,
+) -> list[str]:
+    """
+    Return DecisionDB.id values whose target_entity_id appears in the plan changes
+    and that are either:
+      - is_current = True  (current recommendation, needs re-review), OR
+      - operator_status IS NOT NULL (operator already acted — still visible as history).
+    Scoped per Correction 4 design decision.
+    """
+    from sqlalchemy import or_
+    affected_entity_ids = {pc.entity_id for pc in plan_changes}
+    if not affected_entity_ids:
+        return []
+    result = await session.execute(
+        select(DecisionDB).where(
+            DecisionDB.target_entity_id.in_(affected_entity_ids)
+        ).where(
+            or_(
+                DecisionDB.is_current == True,   # noqa: E712
+                DecisionDB.operator_status.isnot(None),
+            )
+        )
+    )
+    return [row.id for row in result.scalars()]
+
+
 @app.post("/simulate/next")
 async def simulate_next(session: AsyncSession = Depends(get_db)):
     """Process the next simulation event."""
@@ -395,6 +433,8 @@ async def simulate_next(session: AsyncSession = Depends(get_db)):
 
     # Return updated situation
     situation = await get_situation()
+    plan_changes = world_state.last_plan_changes
+    affected_ids = await _collect_affected_decision_ids(plan_changes, session)
     return {
         "status": "event_processed",
         "event": {
@@ -405,6 +445,8 @@ async def simulate_next(session: AsyncSession = Depends(get_db)):
             "entity_id": evt.entity_id,
         },
         "situation_update": situation,
+        "plan_changes": [pc.model_dump(mode="json") for pc in plan_changes],
+        "affected_decision_ids": affected_ids,
     }
 
 
@@ -468,10 +510,14 @@ async def inject_event(
     )
 
     situation = await get_situation()
+    plan_changes = world_state.last_plan_changes
+    affected_ids = await _collect_affected_decision_ids(plan_changes, session)
     return {
         "status": "event_injected",
         "event_id": evt.id,
         "situation_update": situation,
+        "plan_changes": [pc.model_dump(mode="json") for pc in plan_changes],
+        "affected_decision_ids": affected_ids,
     }
 
 
@@ -521,6 +567,88 @@ async def optimize(session: AsyncSession = Depends(get_db)):
 # Decisions
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _b7_fields_for_entity(entity_id: Optional[str], resource_id: Optional[str]) -> dict:
+    """
+    Return B7 fields read directly from world_state — no DB queries, no recompute.
+
+    Provides:
+      task_id                    — from current plan allocation matching resource+entity
+      route_feasible             — from matching AllocationResult.route.feasible
+      estimated_arrival_min      — from matching AllocationResult
+      resource_type              — from world_state.resources
+      capability                 — first resource capability (task type)
+      supporting_factors         — from PriorityScore.supporting_factors
+      last_evidence_verified     — most recent EvidenceSummary.last_verified for the entity
+      target_entity_accessibility — PriorityScore.accessibility_factor
+      human_verification_required — always True
+    """
+    state = world_state
+
+    # Accessibility + supporting factors from priority score
+    priority = state.priorities.get(entity_id) if entity_id else None
+    accessibility = priority.accessibility_factor if priority else None
+    supporting_factors = priority.supporting_factors if priority else []
+
+    # last_evidence_verified: max last_verified across all evidence for this entity
+    evidence = state.get_all_evidence_for_entity(entity_id) if entity_id else []
+    last_verified = None
+    if evidence:
+        last_verified = max(e.last_verified for e in evidence).isoformat()
+
+    # task_id, route_feasible, estimated_arrival_min from current plan
+    task_id = None
+    route_feasible = None
+    estimated_arrival_min = None
+    if state.current_plan and entity_id:
+        for alloc in state.current_plan.allocations:
+            task = state.tasks.get(alloc.task_id)
+            if task and task.target_entity_id == entity_id:
+                # If we also have the resource_id, prefer the exact match
+                if resource_id is None or alloc.resource_id == resource_id:
+                    task_id = alloc.task_id
+                    route_feasible = bool(alloc.route and alloc.route.feasible)
+                    estimated_arrival_min = alloc.estimated_arrival_min
+                    break
+
+    # resource_type and capability from resource
+    resource = state.resources.get(resource_id) if resource_id else None
+    resource_type = resource.type if resource else None
+    capability = resource.capabilities[0].value if (resource and resource.capabilities) else None
+
+    return {
+        "task_id": task_id,
+        "route_feasible": route_feasible,
+        "estimated_arrival_min": estimated_arrival_min,
+        "resource_type": resource_type,
+        "capability": capability,
+        "supporting_factors": supporting_factors,
+        "human_verification_required": True,
+        "last_evidence_verified": last_verified,
+        "target_entity_accessibility": accessibility,
+    }
+
+
+def _decision_row_to_dict(row: DecisionDB) -> dict:
+    """Serialize a DecisionDB row to a dict (shared by list and detail views)."""
+    return {
+        "id": row.id,
+        "timestamp": row.timestamp.isoformat(),
+        "recommended_action": row.recommended_action,
+        "target_entity_id": row.target_entity_id,
+        "resource_id": row.resource_id,
+        "priority": row.priority,
+        "confidence": row.confidence,
+        "reasons": json.loads(row.reasons_json or "[]"),
+        "constraints": json.loads(row.constraints_json or "[]"),
+        "alternatives_considered": json.loads(row.alternatives_json or "[]"),
+        "human_verification_required": row.human_verification_required,
+        "simulation_time_min": row.simulation_time_min,
+        "operator_status": row.operator_status,
+        "operator_notes": row.operator_notes,
+        "is_current": bool(row.is_current),
+    }
+
+
 @app.get("/decisions")
 async def get_decisions(
     limit: int = Query(default=20),
@@ -530,22 +658,7 @@ async def get_decisions(
     result = await session.execute(
         select(DecisionDB).order_by(DecisionDB.timestamp.desc()).limit(limit)
     )
-    decisions = []
-    for row in result.scalars():
-        decisions.append({
-            "id": row.id,
-            "timestamp": row.timestamp.isoformat(),
-            "recommended_action": row.recommended_action,
-            "target_entity_id": row.target_entity_id,
-            "resource_id": row.resource_id,
-            "priority": row.priority,
-            "confidence": row.confidence,
-            "reasons": json.loads(row.reasons_json or "[]"),
-            "constraints": json.loads(row.constraints_json or "[]"),
-            "alternatives_considered": json.loads(row.alternatives_json or "[]"),
-            "human_verification_required": row.human_verification_required,
-            "simulation_time_min": row.simulation_time_min,
-        })
+    decisions = [_decision_row_to_dict(row) for row in result.scalars()]
     return {"decisions": decisions}
 
 
@@ -570,21 +683,71 @@ async def get_decision(
     }
     explanation = provider.explain_decision(decision_data)
 
-    return {
-        "id": row.id,
-        "timestamp": row.timestamp.isoformat(),
-        "recommended_action": row.recommended_action,
-        "target_entity_id": row.target_entity_id,
-        "resource_id": row.resource_id,
-        "priority": row.priority,
-        "confidence": row.confidence,
-        "reasons": json.loads(row.reasons_json or "[]"),
-        "constraints": json.loads(row.constraints_json or "[]"),
-        "alternatives_considered": json.loads(row.alternatives_json or "[]"),
-        "human_verification_required": row.human_verification_required,
-        "simulation_time_min": row.simulation_time_min,
-        "ai_explanation": explanation,
-    }
+    d = _decision_row_to_dict(row)
+    d["ai_explanation"] = explanation
+    # B7 additions — read from world_state, never re-query
+    d.update(_b7_fields_for_entity(row.target_entity_id, row.resource_id))
+    return d
+
+
+@app.post("/decisions/{decision_id}/confirm")
+async def confirm_decision(
+    decision_id: str,
+    request: ConfirmDecisionRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    """
+    Record operator acceptance/rejection/modification of a recommendation (B3).
+
+    Persists operator_status and operator_notes on the DecisionDB row without
+    overwriting recommended_action, reasons, confidence, or any evidence fields.
+    Writes an AuditDB record with event_type='operator_decision'.
+    """
+    valid_statuses = {"accepted", "rejected", "modified"}
+    if request.status not in valid_statuses:
+        raise HTTPException(422, f"Invalid status '{request.status}'. Must be one of: {sorted(valid_statuses)}")
+
+    result = await session.execute(select(DecisionDB).where(DecisionDB.id == decision_id))
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, f"Decision '{decision_id}' not found")
+
+    prev_status = row.operator_status
+
+    # Update only the operator fields — never touch recommendation/evidence fields
+    row.operator_status = request.status
+    row.operator_notes = request.operator_notes
+
+    # Write to AuditDB (B3 requirement — audit persistence, not just in-memory log)
+    audit_row = AuditDB(
+        id=f"AUD-{__import__('uuid').uuid4().hex[:8].upper()}",
+        event_type="operator_decision",
+        entity_id=row.target_entity_id,
+        previous_state_json=json.dumps({"operator_status": prev_status}),
+        new_state_json=json.dumps({
+            "operator_status": request.status,
+            "notes": request.operator_notes,
+        }),
+        decision_id=decision_id,
+        reason=f"Operator {request.status} decision {decision_id}",
+        confidence=row.confidence,
+        simulation_time_min=world_state.current_time_min,
+    )
+    session.add(audit_row)
+
+    # Also append to in-memory audit log so GET /audit reflects it immediately
+    world_state._audit(
+        event_type="operator_decision",
+        entity_id=row.target_entity_id,
+        previous={"operator_status": prev_status},
+        new={"operator_status": request.status, "notes": request.operator_notes},
+        decision_id=decision_id,
+    )
+
+    await session.commit()
+
+    d = _decision_row_to_dict(row)
+    return d
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -893,13 +1056,21 @@ async def get_tasks():
 
 @app.get("/plan")
 async def get_plan():
-    """Current response plan."""
+    """Current response plan with B7 enrichment per allocation."""
     state = world_state
     if not state.current_plan:
         return {"plan": None, "baseline": None}
 
+    # Enrich each allocation with B7 fields (last_evidence_verified, accessibility, etc.)
+    plan_dict = state.current_plan.model_dump(mode="json")
+    for alloc in plan_dict.get("allocations", []):
+        task = state.tasks.get(alloc["task_id"])
+        entity_id = task.target_entity_id if task else None
+        b7 = _b7_fields_for_entity(entity_id, alloc.get("resource_id"))
+        alloc.update(b7)
+
     return {
-        "plan": state.current_plan.model_dump(mode="json"),
+        "plan": plan_dict,
         "baseline": state.baseline_plan.model_dump(mode="json") if state.baseline_plan else None,
         "comparison": {
             "our_total_travel": state.current_plan.total_travel_time,

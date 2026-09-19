@@ -635,3 +635,65 @@ def test_criticality_all_weights_sum_to_one():
         + settings.criticality_weight_damage_severity
     )
     assert abs(total - 1.0) < 0.001, f"Criticality weights must sum to 1.0, got {total}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Correction 5 — _local_improve decisions must match final allocations
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_local_improve_decisions_match_allocations_after_swap():
+    """
+    Regression test for Correction 5.
+    When _local_improve applies a swap, the returned decisions list must describe
+    the POST-swap pairing — not the pre-swap pairing.
+    """
+    from app.engines.resource_optimizer import optimize_allocation
+
+    # Build a network where swapping gives > 5% improvement.
+    # R1: BASE→H1 (20 min), R2: H1→V1 (5 min), R3: BASE→V1 (100 min)
+    network = NetworkState()
+    roads = [
+        Road(id="R1", name="Base-H1", from_node="BASE", to_node="H1",
+             distance_km=5.0, travel_time_min=20.0),
+        Road(id="R2", name="H1-V1",  from_node="H1",   to_node="V1",
+             distance_km=2.0, travel_time_min=5.0),
+        Road(id="R3", name="Base-V1", from_node="BASE", to_node="V1",
+             distance_km=25.0, travel_time_min=100.0),
+    ]
+    network.rebuild(roads, [])
+
+    # Place ambulance at H1 (close to V1 via R2) and rescue at BASE.
+    # Tasks: MEDICAL at H1 and RESCUE at V1.
+    # Greedy would assign Ambulance→H1-medical (0 min) and Rescue→V1 (100 min).
+    # Swap: Ambulance→V1 (5 min from H1), Rescue→H1 (20 min from BASE).
+    # Weighted cost before swap: 0*0.9 + 100*0.8 = 80
+    # Weighted cost after swap:  5*0.9 + 20*0.8 = 20.5  (<80*0.95=76) → swap fires
+    resources = [
+        Resource(id="A1", name="Ambulance 1", type=ResourceType.AMBULANCE,
+                 status=ResourceStatus.AVAILABLE, location_id="H1",
+                 capabilities=[TaskType.MEDICAL_RESPONSE]),
+        Resource(id="RT1", name="Rescue Team 1", type=ResourceType.RESCUE_TEAM,
+                 status=ResourceStatus.AVAILABLE, location_id="BASE",
+                 capabilities=[TaskType.RESCUE, TaskType.MEDICAL_RESPONSE]),
+    ]
+    tasks = [
+        Task(id="T-MEDICAL", name="Medical at H1", task_type=TaskType.MEDICAL_RESPONSE,
+             target_entity_id="H1", priority=0.9),
+        Task(id="T-RESCUE", name="Rescue at V1", task_type=TaskType.RESCUE,
+             target_entity_id="V1", priority=0.8),
+    ]
+
+    plan = optimize_allocation(resources, tasks, network, simulation_time_min=0)
+
+    # Build lookup of final allocation: task_id → resource_id
+    alloc_map = {a.task_id: a.resource_id for a in plan.allocations}
+    # Build lookup of persisted decisions: target_entity_id+resource_id
+    dec_pairs = {(d.target_entity_id, d.resource_id) for d in plan.decisions}
+
+    for alloc in plan.allocations:
+        task = next(t for t in tasks if t.id == alloc.task_id)
+        assert (task.target_entity_id, alloc.resource_id) in dec_pairs, (
+            f"Decision for task {alloc.task_id} → resource {alloc.resource_id} "
+            f"not found in decisions. Decisions: {dec_pairs}. "
+            "decisions list does not match final allocations (swap bug not fixed)."
+        )

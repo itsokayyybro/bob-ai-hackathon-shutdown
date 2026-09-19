@@ -150,6 +150,11 @@ class DecisionDB(Base):
     alternatives_json = Column(Text, default="[]")
     human_verification_required = Column(Boolean, default=True)
     simulation_time_min = Column(Integer, default=0)
+    # B3: operator action capture
+    operator_status = Column(String, nullable=True, default=None)
+    operator_notes = Column(Text, nullable=True, default=None)
+    # B4: decision currency — True only for the most recent recommendation per entity
+    is_current = Column(Boolean, nullable=False, default=False)
 
 
 class SimEventDB(Base):
