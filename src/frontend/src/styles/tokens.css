@@ -1,0 +1,81 @@
+/*
+  Design tokens — light, black-and-white base with Material Design 3 accents.
+
+  Structure follows MD3: a tinted page surface with white cards raised on it,
+  tonal containers for status (a light fill plus a dark on-colour for text), and
+  a single primary blue reserved for actions the operator can take. Colour never
+  decorates; if something is coloured, it means something.
+*/
+
+:root {
+  /* ── Surfaces ─────────────────────────────────────────────────────────── */
+  --page: #f4f6f8; /* surface-container-low — the page behind the cards */
+  --card: #ffffff; /* surface — every card */
+  --card-sunken: #f7f9fa; /* surface-container — nested rows inside a card */
+  --line: #e3e7ea; /* outline-variant */
+  --line-strong: #c4ccd2; /* outline */
+
+  /* ── Text ─────────────────────────────────────────────────────────────── */
+  --ink: #171a1c; /* on-surface */
+  --ink-mid: #495057; /* on-surface-variant */
+  --ink-soft: #71787e; /* muted labels */
+
+  /* ── Primary — actions only ───────────────────────────────────────────── */
+  --primary: #0b57d0;
+  --primary-hover: #0a4bb5;
+  --primary-container: #d8e6fd;
+  --on-primary-container: #08306e;
+
+  /* ── Status: tonal container + on-colour, MD3 style ───────────────────── */
+  --critical: #b3261e;
+  --critical-container: #fce9e7;
+  --on-critical-container: #8c1d17;
+
+  --caution: #8a5300;
+  --caution-container: #fdefd8;
+  --on-caution-container: #6b4000;
+
+  --good: #12683f;
+  --good-container: #dcf3e6;
+  --on-good-container: #0c4f30;
+
+  --info: #1a4d87;
+  --info-container: #dfeaf7;
+  --on-info-container: #123a68;
+
+  /* ── Map ──────────────────────────────────────────────────────────────── */
+  --map-bg: #f7f9fa;
+  --map-water: #bcd6ea;
+  --map-road: #b6bfc6;
+
+  /* ── Type ─────────────────────────────────────────────────────────────── */
+  --font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+
+  --t-label: 0.6875rem; /* 11px  stat labels, all-caps */
+  --t-fine: 0.75rem; /* 12px  captions, meta */
+  --t-small: 0.8125rem; /* 13px  card body */
+  --t-body: 0.875rem; /* 14px  default */
+  --t-title: 1rem; /* 16px  card titles */
+  --t-h: 1.3125rem; /* 21px  event name */
+  /* Headline figures reach five characters ("4,230"), so the size flexes with the
+     column rather than overflowing the narrow left card. */
+  --t-stat: clamp(1.5rem, 2.1vw, 1.875rem);
+
+  /* ── Space ────────────────────────────────────────────────────────────── */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 28px;
+
+  /* ── Shape + elevation (MD3) ──────────────────────────────────────────── */
+  --r-card: 16px;
+  --r-inner: 12px;
+  --r-pill: 999px;
+  --e1: 0 1px 2px rgba(16, 24, 32, 0.06), 0 1px 3px rgba(16, 24, 32, 0.04);
+  --e2: 0 2px 6px rgba(16, 24, 32, 0.08), 0 1px 2px rgba(16, 24, 32, 0.04);
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
