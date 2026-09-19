@@ -23,6 +23,7 @@ from app.engines.resource_optimizer import (
 )
 from app.engines.graph_engine import network as road_network
 from app.engines.priority_engine import compute_criticality, derive_urgency
+from app.scenario import get_scenario_name
 from app.models.domain import (
     BenchmarkMetrics, ResourceStatus, ConflictStatus, TaskType
 )
@@ -97,7 +98,11 @@ def _compute_benchmark_metrics(
     )
     conflict_rate = conflicts / max(1, total_evidence)
 
-    # Average decision confidence
+    # Average decision confidence.
+    # NOTE: the nearest-resource baseline emits no DecisionExplanation objects at
+    # all, so for that strategy this falls through to the 0.5 placeholder below.
+    # A baseline confidence of 0.5 is therefore a default, not a measurement, and
+    # should not be presented as a comparison against the AI figure.
     if plan.decisions:
         avg_conf = sum(d.confidence for d in plan.decisions) / len(plan.decisions)
     else:
@@ -119,8 +124,15 @@ def _compute_benchmark_metrics(
         "unmet_critical_demand": round(unmet_score, 4),
         "resource_utilization": round(utilization, 4),
         "blocked_route_violations": blocked_violations,
+        # NOTE: this counts processed simulation events, each of which triggers a
+        # replan pass. It is not the number of optimizer runs that produced a new
+        # persisted decision set (an event leaving no pending task produces none).
         "replanning_events": len(world_state.processed_event_ids),
         "conflict_detection_rate": round(conflict_rate, 4),
+        # Actual count of conflicting evidence items. Reported directly rather
+        # than reconstructed from the rounded rate: int(0.0909 * 11) truncates to
+        # 0, which under-reported a genuinely detected conflict as none.
+        "conflicts_detected": conflicts,
         "decision_confidence_avg": round(avg_conf, 4),
         "total_observations": len(world_state.observations),
         "total_evidence_items": total_evidence,
@@ -154,16 +166,18 @@ async def run_benchmark(session: AsyncSession) -> dict[str, Any]:
         resources, tasks, road_network, world_state.current_time_min
     )
 
+    scenario_name = get_scenario_name()
+
     ai_metrics = _compute_benchmark_metrics(
         ai_plan, baseline_plan, world_state,
         strategy_name="AI Evidence-Aware Optimizer",
-        scenario_name="Bhote Valley Simulation",
+        scenario_name=scenario_name,
     )
 
     baseline_metrics = _compute_benchmark_metrics(
         baseline_plan, None, world_state,
         strategy_name="Baseline (Nearest Resource)",
-        scenario_name="Bhote Valley Simulation",
+        scenario_name=scenario_name,
     )
 
     # Calculate improvements
@@ -175,7 +189,7 @@ async def run_benchmark(session: AsyncSession) -> dict[str, Any]:
 
     results = {
         "timestamp": datetime.utcnow().isoformat(),
-        "scenario": "Bhote Valley Emergency Simulation (Synthetic)",
+        "scenario": f"{scenario_name} (Synthetic)",
         "sim_time_min": world_state.current_time_min,
         "ai_system": ai_metrics,
         "baseline": baseline_metrics,
@@ -183,7 +197,7 @@ async def run_benchmark(session: AsyncSession) -> dict[str, Any]:
             "travel_time_reduction_pct": round(travel_improvement, 1),
             "coverage_improvement": round(coverage_delta, 4),
             "conflict_detection": ai_metrics["conflict_detection_rate"] > 0,
-            "conflicts_detected": int(ai_metrics["conflict_detection_rate"] * ai_metrics["total_evidence_items"]),
+            "conflicts_detected": ai_metrics["conflicts_detected"],
             "blocked_route_violations_avoided": max(0, baseline_metrics["blocked_route_violations"] - ai_metrics["blocked_route_violations"]),
         },
         "methodology": (

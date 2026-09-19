@@ -1,8 +1,9 @@
 {
   "mcpServers": {
     "disaster-response": {
-      "command": "/opt/conda/bin/python3",
-      "args": ["/workspaces/bob-ai-hackathon-shutdown/src/mcp/server.py"],
+      "command": "python3",
+      "args": ["src/mcp/server.py"],
+      "cwd": "${workspaceFolder}",
       "env": {
         "BACKEND_URL": "http://localhost:8000"
       }

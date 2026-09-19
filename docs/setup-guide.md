@@ -227,12 +227,16 @@ This will:
 
 The MCP config is at `src/mcp/mcp_config.json`. Bob uses this to start the MCP server.
 
+The shipped config contains **no absolute paths and no developer-specific
+directories**, so it works on any checkout:
+
 ```json
 {
   "mcpServers": {
     "disaster-response": {
-      "command": "/opt/conda/bin/python3",
-      "args": ["/path/to/src/mcp/server.py"],
+      "command": "python3",
+      "args": ["src/mcp/server.py"],
+      "cwd": "${workspaceFolder}",
       "env": {
         "BACKEND_URL": "http://localhost:8000"
       }
@@ -241,13 +245,37 @@ The MCP config is at `src/mcp/mcp_config.json`. Bob uses this to start the MCP s
 }
 ```
 
+How the two path-sensitive parts resolve:
+
+- **`command`** is resolved from `PATH`. Use whichever name your platform
+  provides — `python3` on Linux/macOS, `python` on most Windows installs. If you
+  installed the backend dependencies into a virtual environment, point `command`
+  at that environment's interpreter so `httpx` is importable, for example
+  `.venv/bin/python3` (Linux/macOS) or `.venv\\Scripts\\python.exe` (Windows).
+- **`args`** is a repo-relative path, resolved against `cwd`.
+
+`${workspaceFolder}` is substituted by VS Code-family clients. If your MCP client
+does not substitute it, replace `cwd` with the absolute path of your checkout —
+that value is local to your machine and should not be committed:
+
+```json
+"cwd": "/your/path/to/bob-ai-hackathon-shutdown"
+```
+
+`server.py` itself is working-directory independent: it resolves its imports
+relative to its own file location, and reads the backend URL from `BACKEND_URL`.
+Only the `args` path needs `cwd` to be correct.
+
 ### 2. Test MCP tools manually
+
+Run these from the repository root. Substitute your own interpreter for
+`python3` if needed (see above).
 
 ```bash
 # With backend running:
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | /opt/conda/bin/python3 src/mcp/server.py
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | python3 src/mcp/server.py
 
-echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | /opt/conda/bin/python3 src/mcp/server.py
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | python3 src/mcp/server.py
 ```
 
 ### 3. Available MCP tools

@@ -31,7 +31,7 @@ from app.engines.priority_engine import (
 from app.engines.resource_optimizer import optimize_allocation, baseline_nearest_assignment
 from app.models.domain import (
     Asset, Road, Bridge, Resource, Observation, EvidenceSummary,
-    PriorityScore, ResponsePlan, AuditRecord, SimulationEvent,
+    PriorityScore, ResponsePlan, PlanChange, AuditRecord, SimulationEvent,
     AssetStatus, RoadStatus, ResourceStatus, ObservationType,
     SourceType, EntityType, Location, Task, TaskType
 )
@@ -56,7 +56,13 @@ class WorldState:
         self.tasks: dict[str, Task] = {}
         self.current_plan: Optional[ResponsePlan] = None
         self.baseline_plan: Optional[ResponsePlan] = None
+        # B5: plan changes produced by the most recent event, exposed by B6.
+        self.last_plan_changes: list[PlanChange] = []
         self.current_time_min: int = 0
+        # Correction 4 / B4: monotonic generation of the persisted decision set.
+        # Incremented once per optimizer run that writes DecisionDB rows, so a
+        # row is current iff its plan_generation equals this value.
+        self.plan_generation: int = 0
         self.simulation_started: bool = False
         self.simulation_base_time: datetime = datetime.utcnow()
         self.processed_event_ids: set[str] = set()
@@ -155,6 +161,33 @@ class WorldState:
         self.audit_log.append(record)
         logger.info(f"AUDIT [{self.current_time_min}min] {event_type}: {reason}")
         return record
+
+
+async def persist_audit_record(session: AsyncSession, record: AuditRecord) -> None:
+    """Write an in-memory AuditRecord through to the audit_log table.
+
+    WorldState._audit() records to memory, which is what GET /audit has always
+    served. That log does not survive a restart, so operator actions — the one
+    class of audit entry representing a human commitment — are also persisted
+    here. Callers pair the two: _audit() to record, then this to durably store.
+    """
+    session.add(AuditDB(
+        id=record.id,
+        timestamp=record.timestamp,
+        event_type=record.event_type,
+        entity_id=record.entity_id,
+        previous_state_json=(
+            json.dumps(record.previous_state) if record.previous_state is not None else None
+        ),
+        new_state_json=(
+            json.dumps(record.new_state) if record.new_state is not None else None
+        ),
+        decision_id=record.decision_id,
+        reason=record.reason,
+        confidence=record.confidence,
+        simulation_time_min=record.simulation_time_min,
+    ))
+    await session.commit()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -441,6 +474,156 @@ class SimulationEngine:
 
         return None, 0.0
 
+    # ── B5: response-plan change detection ───────────────────────────────────
+    # Only a comparison of the existing optimizer's output before and after an
+    # event. No routing or allocation is recomputed here.
+
+    #: Relative ETA drift below which a change is not worth reporting.
+    ETA_CHANGE_THRESHOLD = 0.10
+
+    def _snapshot_allocations(self) -> dict[str, dict]:
+        """Capture the current plan's allocations, keyed by task id.
+
+        The target entity is captured alongside, so a change can still be
+        described if the task itself disappears from the next task set.
+        """
+        state = self.state
+        snapshot: dict[str, dict] = {}
+        plan = state.current_plan
+        if not plan:
+            return snapshot
+
+        for alloc in plan.allocations:
+            task = state.tasks.get(alloc.task_id)
+            snapshot[alloc.task_id] = {
+                "resource_id": alloc.resource_id,
+                "eta_min": alloc.estimated_arrival_min,
+                "route_feasible": bool(alloc.route.feasible) if alloc.route else False,
+                "entity_id": task.target_entity_id if task else None,
+            }
+        return snapshot
+
+    def _current_allocation_view(self) -> dict[str, dict]:
+        """Same shape as the snapshot, for the plan as it now stands."""
+        return self._snapshot_allocations()
+
+    def _affected_infrastructure_id(self, evt: Optional[SimulationEvent]) -> Optional[str]:
+        """The road/bridge whose status the triggering event changed, if any."""
+        if not evt or not evt.entity_id:
+            return None
+        state = self.state
+        if evt.entity_id in state.roads or evt.entity_id in state.bridges:
+            return evt.entity_id
+        return None
+
+    def _diff_plan(
+        self,
+        previous: dict[str, dict],
+        current: dict[str, dict],
+        evt: Optional[SimulationEvent],
+    ) -> list[PlanChange]:
+        """Diff two allocation views and return only meaningful changes."""
+        infra_id = self._affected_infrastructure_id(evt)
+        evt_id = evt.id if evt else None
+        evt_type = evt.event_type if evt else None
+        state = self.state
+
+        def _entity_for(task_id: str, *sources: dict) -> Optional[str]:
+            for src in sources:
+                if src and src.get("entity_id"):
+                    return src["entity_id"]
+            task = state.tasks.get(task_id)
+            return task.target_entity_id if task else None
+
+        changes: list[PlanChange] = []
+
+        for task_id in sorted(set(previous) | set(current)):
+            before = previous.get(task_id)
+            after = current.get(task_id)
+
+            prev_resource = before["resource_id"] if before else None
+            new_resource = after["resource_id"] if after else None
+            prev_eta = before["eta_min"] if before else None
+            new_eta = after["eta_min"] if after else None
+            prev_feasible = before["route_feasible"] if before else None
+            new_feasible = after["route_feasible"] if after else None
+
+            resource_changed = prev_resource != new_resource
+            feasibility_lost = prev_feasible is True and new_feasible is not True
+            feasibility_regained = prev_feasible is False and new_feasible is True
+
+            # ETA drift, relative to the previous value.
+            eta_materially_changed = False
+            if prev_eta is not None and new_eta is not None and not resource_changed:
+                if prev_eta > 0:
+                    eta_materially_changed = (
+                        abs(new_eta - prev_eta) / prev_eta > self.ETA_CHANGE_THRESHOLD
+                    )
+                else:
+                    eta_materially_changed = new_eta > 0
+
+            if not (
+                resource_changed
+                or feasibility_lost
+                or feasibility_regained
+                or eta_materially_changed
+            ):
+                continue  # Not a meaningful change.
+
+            # review_required per B5: a previously feasible route that is no
+            # longer feasible, or a different assigned resource.
+            review_required = bool(feasibility_lost or resource_changed)
+
+            entity_id = _entity_for(task_id, after, before)
+            infra_suffix = f" ({infra_id})" if infra_id else ""
+
+            if before is None:
+                reason = f"Task newly assigned to {new_resource}"
+            elif after is None:
+                reason = (
+                    f"Task no longer has a feasible assignment "
+                    f"(was {prev_resource})"
+                )
+                if infra_id:
+                    reason += f"; {infra_id} status changed"
+            elif resource_changed:
+                reason = f"Resource reassigned from {prev_resource} to {new_resource}"
+                if evt_type:
+                    reason += f" after {evt_type}{infra_suffix}"
+            elif feasibility_lost:
+                reason = (
+                    f"Route for {new_resource} to {entity_id} is no longer feasible"
+                )
+                if infra_id:
+                    reason += f"; {infra_id} blocked"
+            elif feasibility_regained:
+                reason = f"Route for {new_resource} to {entity_id} is feasible again"
+                if infra_id:
+                    reason += f" after {infra_id} reopened"
+            else:
+                reason = (
+                    f"Estimated arrival changed from {prev_eta:.0f} to "
+                    f"{new_eta:.0f} min for {new_resource}"
+                )
+
+            changes.append(PlanChange(
+                task_id=task_id,
+                entity_id=entity_id,
+                previous_resource_id=prev_resource,
+                new_resource_id=new_resource,
+                previous_eta_min=prev_eta,
+                new_eta_min=new_eta,
+                previous_route_feasible=prev_feasible,
+                new_route_feasible=new_feasible,
+                change_reason=reason,
+                triggering_event_id=evt_id,
+                triggering_event_type=evt_type,
+                affected_infrastructure_id=infra_id,
+                review_required=review_required,
+            ))
+
+        return changes
+
     def _estimate_duration(self, task_type: TaskType) -> int:
         durations = {
             TaskType.RESCUE: 45,
@@ -463,6 +646,10 @@ class SimulationEngine:
 
         logger.info(f"PROCESSING EVENT [{evt.time_offset_min}min]: {evt.event_type} — {evt.description}")
 
+        # B5: capture the plan before anything mutates state, so the diff after
+        # the replan reflects exactly what this event changed.
+        plan_before = self._snapshot_allocations()
+
         await self._process_event(evt, session)
 
         # Mark processed in DB
@@ -480,6 +667,11 @@ class SimulationEngine:
         self._recalculate_priorities()
         self._generate_tasks()
         await self._run_optimizer(session)
+
+        # B5: diff the regenerated plan against the pre-event snapshot.
+        state.last_plan_changes = self._diff_plan(
+            plan_before, self._current_allocation_view(), evt
+        )
 
         return evt
 
@@ -718,6 +910,13 @@ class SimulationEngine:
             resources, tasks, road_network, state.current_time_min
         )
 
+        # B4 / Correction 4: a replan never rewrites an earlier recommendation.
+        # Each optimizer run that persists decisions advances the generation, so
+        # the rows it writes become the current set and every prior row becomes
+        # history. Because this path only ever INSERTs, a row that an operator
+        # has already acted on cannot be overwritten.
+        state.plan_generation += 1
+
         # Persist decisions
         for decision in state.current_plan.decisions:
             dec_db = DecisionDB(
@@ -726,6 +925,7 @@ class SimulationEngine:
                 recommended_action=decision.recommended_action,
                 target_entity_id=decision.target_entity_id,
                 resource_id=decision.resource_id,
+                task_id=decision.task_id,
                 priority=decision.priority,
                 confidence=decision.confidence,
                 reasons_json=json.dumps(decision.reasons),
@@ -734,6 +934,7 @@ class SimulationEngine:
                 alternatives_json=json.dumps(decision.alternatives_considered),
                 human_verification_required=decision.human_verification_required,
                 simulation_time_min=state.current_time_min,
+                plan_generation=state.plan_generation,
             )
             session.add(dec_db)
 
@@ -786,6 +987,9 @@ class SimulationEngine:
         session.add(evt_db)
         await session.commit()
 
+        # B5: snapshot before the injected event mutates any state.
+        plan_before = self._snapshot_allocations()
+
         # Process immediately
         self.state.all_events.append(evt)
         self.state.current_time_min = evt.time_offset_min
@@ -794,6 +998,10 @@ class SimulationEngine:
         self._recalculate_priorities()
         self._generate_tasks()
         await self._run_optimizer(session)
+
+        self.state.last_plan_changes = self._diff_plan(
+            plan_before, self._current_allocation_view(), evt
+        )
 
         evt.processed = True
         return evt
@@ -847,6 +1055,22 @@ class SimulationEngine:
 
         await session.commit()
         await self.load_from_db(session)
+
+        # load_from_db() rebuilds entities and events but does not touch the
+        # simulation's own progress counters, which live only on WorldState.
+        # Without this, a reset left the clock, the processed-event set and the
+        # decision generation at their pre-reset values, so the simulation
+        # reported itself part-way through a run it had just rewound.
+        state = self.state
+        state.current_time_min = 0
+        state.processed_event_ids.clear()
+        state.plan_generation = 0
+        state.baseline_plan = None
+        state.last_plan_changes = []
+        # The audit rows were deleted above; clearing the in-memory log keeps
+        # the two views of the audit trail consistent after a reset.
+        state.audit_log.clear()
+
         logger.info("Simulation reset complete.")
 
 

@@ -553,6 +553,128 @@ def test_optimizer_no_tasks():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Regression: decisions must describe the FINAL allocations after a swap
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _make_swap_world():
+    """
+    Build a world where the greedy pass produces a pairing that local
+    improvement then swaps, so the swap path is actually exercised.
+
+    Travel times (risk=0 so edge cost == travel time):
+        RT_A(BASE_A) -> NEAR = 10,  -> FAR = 20
+        RT_B(BASE_B) -> NEAR = 12,  -> FAR = 42 (via NEAR+BASE_A, cheaper than
+                                                 the direct 60min road)
+
+    Greedy assigns RT_A->NEAR (highest score) then RT_B->FAR, giving a weighted
+    total of 10*0.9 + 42*0.5 = 30.0. The swap gives 20*0.5 + 12*0.9 = 20.8,
+    which clears the engine's 5% improvement threshold, so the swap is applied.
+    """
+    network = NetworkState()
+    roads = [
+        Road(id="RA_NEAR", name="BaseA-Near", from_node="BASE_A", to_node="NEAR",
+             distance_km=5.0, travel_time_min=10.0, risk=0.0),
+        Road(id="RA_FAR", name="BaseA-Far", from_node="BASE_A", to_node="FAR",
+             distance_km=10.0, travel_time_min=20.0, risk=0.0),
+        Road(id="RB_NEAR", name="BaseB-Near", from_node="BASE_B", to_node="NEAR",
+             distance_km=6.0, travel_time_min=12.0, risk=0.0),
+        Road(id="RB_FAR", name="BaseB-Far", from_node="BASE_B", to_node="FAR",
+             distance_km=30.0, travel_time_min=60.0, risk=0.0),
+    ]
+    network.rebuild(roads, [])
+
+    # Both are rescue teams, so both can perform RESCUE and EVACUATION.
+    # Cross-capability is required for the optimizer to consider a swap.
+    resources = [
+        Resource(id="RT_A", name="Rescue Team A", type=ResourceType.RESCUE_TEAM,
+                 status=ResourceStatus.AVAILABLE, location_id="BASE_A",
+                 capabilities=[TaskType.RESCUE, TaskType.EVACUATION]),
+        Resource(id="RT_B", name="Rescue Team B", type=ResourceType.RESCUE_TEAM,
+                 status=ResourceStatus.AVAILABLE, location_id="BASE_B",
+                 capabilities=[TaskType.RESCUE, TaskType.EVACUATION]),
+    ]
+    tasks = [
+        Task(id="T_NEAR", name="Rescue at Near", task_type=TaskType.RESCUE,
+             target_entity_id="NEAR", priority=0.9),
+        Task(id="T_FAR", name="Evacuate Far", task_type=TaskType.EVACUATION,
+             target_entity_id="FAR", priority=0.5),
+    ]
+    return network, resources, tasks
+
+
+def test_local_improve_actually_swaps():
+    """Guard: the swap world must genuinely trigger a swap.
+
+    If the engine's scoring or threshold changes so that no swap occurs, this
+    fails loudly rather than letting the regression test below pass vacuously.
+    """
+    network, resources, tasks = _make_swap_world()
+    plan = optimize_allocation(resources, tasks, network)
+
+    by_resource = {a.resource_id: a.task_id for a in plan.allocations}
+    assert by_resource == {"RT_A": "T_FAR", "RT_B": "T_NEAR"}, (
+        f"Expected post-swap pairing, got {by_resource}"
+    )
+
+
+def test_decisions_match_allocations_after_swap():
+    """
+    Regression for the local-improvement bug: `_local_improve` rewrote
+    allocations[i]/[j] on an accepted swap but left `decisions` untouched, so the
+    persisted DecisionDB rows described the PRE-swap pairing. B7 joins decisions
+    to allocations on task/resource, so a stale decision makes that join wrong.
+    """
+    network, resources, tasks = _make_swap_world()
+    plan = optimize_allocation(resources, tasks, network)
+
+    task_by_id = {t.id: t for t in tasks}
+    resource_by_id = {r.id: r for r in resources}
+
+    # DecisionExplanation carries no task_id, so correlate via the task's
+    # target_entity_id, which is what the decision does record.
+    expected = {
+        (task_by_id[a.task_id].target_entity_id, a.resource_id)
+        for a in plan.allocations
+    }
+    actual = {(d.target_entity_id, d.resource_id) for d in plan.decisions}
+
+    assert actual == expected, (
+        f"Decisions describe a different pairing than allocations.\n"
+        f"  allocations: {sorted(expected)}\n"
+        f"  decisions:   {sorted(actual)}"
+    )
+
+    # Every decision must also be internally consistent: the action text names
+    # the resource it is paired with, and priority matches the paired task.
+    entity_to_task = {t.target_entity_id: t for t in tasks}
+    for d in plan.decisions:
+        resource = resource_by_id[d.resource_id]
+        task = entity_to_task[d.target_entity_id]
+        assert resource.name in d.recommended_action, (
+            f"Decision action {d.recommended_action!r} does not name {resource.name}"
+        )
+        assert task.name in d.recommended_action, (
+            f"Decision action {d.recommended_action!r} does not name {task.name}"
+        )
+        assert d.priority == pytest.approx(task.priority), (
+            f"Decision priority {d.priority} != paired task priority {task.priority}"
+        )
+
+
+def test_decisions_index_aligned_with_allocations_after_swap():
+    """`decisions[i]` must describe `allocations[i]` — the engine relies on this."""
+    network, resources, tasks = _make_swap_world()
+    plan = optimize_allocation(resources, tasks, network)
+
+    assert len(plan.decisions) == len(plan.allocations)
+
+    task_by_id = {t.id: t for t in tasks}
+    for alloc, decision in zip(plan.allocations, plan.decisions):
+        assert decision.resource_id == alloc.resource_id
+        assert decision.target_entity_id == task_by_id[alloc.task_id].target_entity_id
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Edge Cases
 # ─────────────────────────────────────────────────────────────────────────────
 
